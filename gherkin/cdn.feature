@@ -158,3 +158,17 @@ Feature: Provider startup and configuration fetching
     When polling triggers a configuration refetch
     Then the provider state is READY
     And flag "flagA" eventually evaluates to false
+
+  # ---------------------------------------------------------------------------
+  # Flag evaluation
+  # ---------------------------------------------------------------------------
+
+  @evaluation
+  Scenario: A known flag evaluates correctly
+    Given an initialized, READY provider serving a valid flag configuration
+    Then flag "flagA" evaluates to true
+
+  @evaluation
+  Scenario: An unknown flag returns a Flag-Not-Found error
+    Given an initialized, READY provider serving a valid flag configuration
+    Then evaluating flag "no-such-flag" returns a Flag-Not-Found error

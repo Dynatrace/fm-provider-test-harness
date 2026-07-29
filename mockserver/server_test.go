@@ -190,6 +190,45 @@ func TestMetricsSinkReturns202(t *testing.T) {
 	}
 }
 
+func TestMetricsRequestsAreRecorded(t *testing.T) {
+	h := NewServer().Handler()
+
+	r := httptest.NewRequest("POST", "/v1/metrics", strings.NewReader(`{"metrics":[{"key":"flag.a"}]}`))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Authorization", "Api-Token dt0c01.abc")
+	h.ServeHTTP(httptest.NewRecorder(), r)
+
+	reqs := getMetricsRequests(t, h)
+	if len(reqs) != 1 {
+		t.Fatalf("recorded %d metrics requests, want 1", len(reqs))
+	}
+	got := reqs[0]
+	if got.Method != "POST" || got.Path != "/v1/metrics" {
+		t.Fatalf("recorded %s %s, want POST /v1/metrics", got.Method, got.Path)
+	}
+	if got.Body != `{"metrics":[{"key":"flag.a"}]}` {
+		t.Fatalf("recorded body = %q", got.Body)
+	}
+	if got.Headers["content-type"] != "application/json" {
+		t.Fatalf("content-type = %q (want lower-cased key)", got.Headers["content-type"])
+	}
+	if got.Headers["authorization"] != "Api-Token dt0c01.abc" {
+		t.Fatalf("authorization = %q", got.Headers["authorization"])
+	}
+}
+
+func TestResetClearsMetricsRequests(t *testing.T) {
+	h := NewServer().Handler()
+	do(t, h, "POST", "/v1/metrics", `{"metrics":[]}`)
+
+	if rec := do(t, h, "POST", "/__control__/reset", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("reset = %d, want 204", rec.Code)
+	}
+	if reqs := getMetricsRequests(t, h); len(reqs) != 0 {
+		t.Fatalf("after reset recorded %d metrics requests, want 0", len(reqs))
+	}
+}
+
 func TestSSEEmitBroadcasts(t *testing.T) {
 	s := NewServer()
 	h := s.Handler()
@@ -227,17 +266,32 @@ func program(t *testing.T, h http.Handler, body string) {
 	}
 }
 
-func getRequests(t *testing.T, h http.Handler) []recordedRequest {
+func getRequests(t *testing.T, h http.Handler) []cdnRequest {
 	t.Helper()
 	rec := do(t, h, "GET", "/__control__/cdn/requests", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get requests = %d, want 200", rec.Code)
 	}
 	var resp struct {
-		Requests []recordedRequest `json:"requests"`
+		Requests []cdnRequest `json:"requests"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode requests: %v", err)
+	}
+	return resp.Requests
+}
+
+func getMetricsRequests(t *testing.T, h http.Handler) []metricsRequest {
+	t.Helper()
+	rec := do(t, h, "GET", "/__control__/metrics/requests", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get metrics requests = %d, want 200", rec.Code)
+	}
+	var resp struct {
+		Requests []metricsRequest `json:"requests"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode metrics requests: %v", err)
 	}
 	return resp.Requests
 }

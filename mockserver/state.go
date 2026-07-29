@@ -14,11 +14,22 @@ type cdnResponse struct {
 	Headers map[string]string `json:"headers,omitempty"`
 }
 
-// recordedRequest is a CDN request the backend observed since the last reset.
-type recordedRequest struct {
+// cdnRequest is a CDN request the backend observed since the last reset.
+type cdnRequest struct {
 	Method  string            `json:"method"`
 	Path    string            `json:"path"`
 	Headers map[string]string `json:"headers"`
+}
+
+// metricsRequest is a metrics-ingest request the backend observed since the last reset.
+//
+// Unlike CDN requests, the body is the payload under test, so it is captured verbatim (as a string
+// so acceptance suites can assert on the raw bytes regardless of encoding).
+type metricsRequest struct {
+	Method  string            `json:"method"`
+	Path    string            `json:"path"`
+	Headers map[string]string `json:"headers"`
+	Body    string            `json:"body"`
 }
 
 // state holds all mutable, per-scenario backend state. All access is guarded by mu.
@@ -27,12 +38,15 @@ type state struct {
 
 	// CDN response program. Each CDN GET consumes the next entry; once exhausted the last entry is
 	// served repeatedly when repeatLast is true (otherwise a 404 is returned).
-	responses  []cdnResponse
-	repeatLast bool
-	cursor     int
+	cdnResponses []cdnResponse
+	repeatLast   bool
+	cursor       int
 
-	// CDN requests observed since the last reset, in arrival order.
-	requests []recordedRequest
+	// CDN cdnRequests observed since the last reset, in arrival order.
+	cdnRequests []cdnRequest
+
+	// Metrics-ingest cdnRequests observed since the last reset, in arrival order.
+	metricsRequests []metricsRequest
 
 	// Connected SSE subscribers. Each is a buffered channel of pre-formatted "data:" payloads.
 	sseClients map[chan string]struct{}
@@ -45,51 +59,66 @@ func newState() *state {
 	}
 }
 
-// reset clears the response program, recorded requests and cursor. SSE subscribers are left
-// connected (a reset between scenarios must not drop a stream the provider just opened).
 func (s *state) reset() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.responses = nil
+	s.cdnResponses = nil
 	s.repeatLast = true
 	s.cursor = 0
-	s.requests = nil
+	s.cdnRequests = nil
+	s.metricsRequests = nil
 }
 
-// programResponses replaces the CDN response program and rewinds the cursor. Recorded requests are
+// programResponses replaces the CDN response program and rewinds the cursor. Recorded cdnRequests are
 // intentionally preserved so a step can program a new response and still count fetches across it.
 func (s *state) programResponses(responses []cdnResponse, repeatLast bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.responses = responses
+	s.cdnResponses = responses
 	s.repeatLast = repeatLast
 	s.cursor = 0
 }
 
 // nextResponse records the request and returns the CDN response to serve, or ok=false when the
 // program is exhausted and repeatLast is disabled.
-func (s *state) nextResponse(req recordedRequest) (cdnResponse, bool) {
+func (s *state) nextResponse(req cdnRequest) (cdnResponse, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.requests = append(s.requests, req)
+	s.cdnRequests = append(s.cdnRequests, req)
 
-	if s.cursor < len(s.responses) {
-		r := s.responses[s.cursor]
+	if s.cursor < len(s.cdnResponses) {
+		r := s.cdnResponses[s.cursor]
 		s.cursor++
 		return r, true
 	}
-	if s.repeatLast && len(s.responses) > 0 {
-		return s.responses[len(s.responses)-1], true
+	if s.repeatLast && len(s.cdnResponses) > 0 {
+		return s.cdnResponses[len(s.cdnResponses)-1], true
 	}
 	return cdnResponse{}, false
 }
 
-func (s *state) recordedRequests() []recordedRequest {
+func (s *state) recordedCdnRequests() []cdnRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make([]recordedRequest, len(s.requests))
-	copy(out, s.requests)
+	out := make([]cdnRequest, len(s.cdnRequests))
+	copy(out, s.cdnRequests)
+	return out
+}
+
+// recordMetrics appends a metrics-ingest request to the log. Unlike CDN cdnRequests there is no
+// programmed response to consume — the endpoint is a pure sink — so this only records.
+func (s *state) recordMetrics(req metricsRequest) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.metricsRequests = append(s.metricsRequests, req)
+}
+
+func (s *state) recordedMetricsRequests() []metricsRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]metricsRequest, len(s.metricsRequests))
+	copy(out, s.metricsRequests)
 	return out
 }
 

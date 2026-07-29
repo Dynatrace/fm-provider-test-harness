@@ -2,13 +2,8 @@
 
 A single, dependency-free Go service that emulates every component the Dynatrace OpenFeature
 providers talk to — the **CDN** config endpoint, the **metrics** ingest endpoint, and an **SSE**
-stream — plus an HTTP **control plane** the acceptance suites use to script responses and inspect
+stream. It also exposes an HTTP **control plane** to script responses and inspect
 what the provider sent.
-
-It backs the shared Gherkin spec in [`../gherkin/cdn.feature`](../gherkin/cdn.feature). Each provider
-repo (Java / Go / Python) consumes this harness as a git submodule, runs this image via
-Testcontainers, points the provider's `configOrigin` (and metrics URL) at it, and drives it through
-the control API below.
 
 ## Run
 
@@ -32,7 +27,7 @@ The published, versioned image is what provider suites pull (e.g. via `MOCKSERVE
 | Method | Path                 | Behavior                                                                         |
 |--------|----------------------|----------------------------------------------------------------------------------|
 | `GET`  | `/server/{key}.json` | Serves the programmed CDN response sequence and records the request (path + headers). |
-| `POST` | `/v1/metrics`        | Metrics sink — always `202`.                                                     |
+| `POST` | `/v1/metrics`        | Metrics sink — always `202`; records the request (path + headers + body) for inspection. |
 | `GET`  | `/sse`               | SSE stream (`text/event-stream`); delivers messages pushed via the control plane. |
 
 ## Control plane (`/__control__`)
@@ -40,9 +35,10 @@ The published, versioned image is what provider suites pull (e.g. via `MOCKSERVE
 | Method | Path              | Body / Result                                                        |
 |--------|-------------------|----------------------------------------------------------------------|
 | `GET`  | `/health`         | `200 {"status":"ok"}` — Testcontainers wait target.                  |
-| `POST` | `/reset`          | Clears the response program, cursor and recorded requests. `204`.    |
+| `POST` | `/reset`          | Clears the response program, cursor and recorded CDN + metrics requests. `204`. |
 | `PUT`  | `/cdn/responses`  | Sets the ordered CDN response program. `204`.                        |
 | `GET`  | `/cdn/requests`   | Returns recorded CDN requests since the last reset. `200`.           |
+| `GET`  | `/metrics/requests` | Returns recorded metrics-ingest requests since the last reset. `200`. |
 | `POST` | `/sse/emit`       | Pushes an SSE message to connected subscribers. `204`.               |
 
 ### `PUT /__control__/cdn/responses`
@@ -82,6 +78,22 @@ swap the response and still count fetches across the change. Use `/reset` to cle
 
 Requests are returned in arrival order; **header names are lower-cased**. Used to assert the initial
 fetch is unconditional and that it targets `/server/{key}.json`.
+
+### `GET /__control__/metrics/requests`
+
+```json
+{
+  "requests": [
+    { "method": "POST", "path": "/v1/metrics",
+      "headers": { "content-type": "application/json", "authorization": "Api-Token dt0c01...." },
+      "body": "{\"metrics\":[{\"key\":\"flag.a\"}]}" }
+  ]
+}
+```
+
+Every `POST /v1/metrics` is recorded in arrival order. Like the CDN log, **header names are
+lower-cased**; the raw request `body` is captured verbatim as a string so a step can assert on the
+exact payload the provider ingested. The endpoint still always responds `202` to the provider.
 
 ### `POST /__control__/sse/emit`
 

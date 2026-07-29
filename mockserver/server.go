@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -35,6 +36,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /__control__/reset", s.handleReset)
 	mux.HandleFunc("PUT /__control__/cdn/responses", s.handleProgramCDN)
 	mux.HandleFunc("GET /__control__/cdn/requests", s.handleGetRequests)
+	mux.HandleFunc("GET /__control__/metrics/requests", s.handleGetMetrics)
 	mux.HandleFunc("POST /__control__/sse/emit", s.handleSSEEmit)
 
 	return logging(mux)
@@ -43,7 +45,7 @@ func (s *Server) Handler() http.Handler {
 // ---- provider-facing handlers ----------------------------------------------
 
 func (s *Server) handleCDN(w http.ResponseWriter, r *http.Request) {
-	resp, ok := s.state.nextResponse(recordedRequest{
+	resp, ok := s.state.nextResponse(cdnRequest{
 		Method:  r.Method,
 		Path:    r.URL.Path,
 		Headers: flattenHeaders(r.Header),
@@ -66,10 +68,14 @@ func (s *Server) handleCDN(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleMetrics(w http.ResponseWriter, _ *http.Request) {
-	// Sink: the provider only needs a 2xx so metric flushes don't error. The http server closes and
-	// drains the request body for us.
-	// TODO store metrics in memory and expose them via the control plane so acceptance tests can assert on them
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	s.state.recordMetrics(metricsRequest{
+		Method:  r.Method,
+		Path:    r.URL.Path,
+		Headers: flattenHeaders(r.Header),
+		Body:    string(body),
+	})
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -134,8 +140,15 @@ func (s *Server) handleProgramCDN(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetRequests(w http.ResponseWriter, _ *http.Request) {
 	resp := struct {
-		Requests []recordedRequest `json:"requests"`
-	}{Requests: s.state.recordedRequests()}
+		Requests []cdnRequest `json:"requests"`
+	}{Requests: s.state.recordedCdnRequests()}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleGetMetrics(w http.ResponseWriter, _ *http.Request) {
+	resp := struct {
+		Requests []metricsRequest `json:"requests"`
+	}{Requests: s.state.recordedMetricsRequests()}
 	writeJSON(w, http.StatusOK, resp)
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -254,6 +255,60 @@ func TestSSEEmitBroadcasts(t *testing.T) {
 	default:
 		t.Fatal("no SSE payload broadcast to subscriber")
 	}
+}
+
+func TestSSEEmitForwardsPayloadVerbatim(t *testing.T) {
+	// The emit endpoint must pass arbitrary payloads through untouched so suites can exercise how
+	// the provider tolerates unknown fields and alternate shapes (e.g. the Ably {"data":...} envelope).
+	cases := map[string]string{
+		"unknown field preserved": `{"type":"refetchConfig","metadata":{"channel":"x"},"future":42}`,
+		"ably envelope preserved": `{"data":"{\"type\":\"refetchConfig\"}"}`,
+		"typeless message passes": `{"lastModified":1735776000}`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := NewServer()
+			h := s.Handler()
+			ch := make(chan string, 1)
+			s.state.addSSEClient(ch)
+			defer s.state.removeSSEClient(ch)
+
+			if rec := do(t, h, "POST", "/__control__/sse/emit", body); rec.Code != http.StatusNoContent {
+				t.Fatalf("sse emit = %d, want 204", rec.Code)
+			}
+
+			select {
+			case payload := <-ch:
+				// Compare structurally: json.Compact may reorder nothing but drops whitespace only,
+				// so an equal-JSON check is robust to formatting.
+				if !equalJSON(t, payload, body) {
+					t.Fatalf("broadcast = %s, want structurally equal to %s", payload, body)
+				}
+			default:
+				t.Fatal("no SSE payload broadcast to subscriber")
+			}
+		})
+	}
+}
+
+func TestSSEEmitRejectsInvalidJSON(t *testing.T) {
+	h := NewServer().Handler()
+	rec := do(t, h, "POST", "/__control__/sse/emit", `not json`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("sse emit invalid JSON = %d, want 400", rec.Code)
+	}
+}
+
+func equalJSON(t *testing.T, a, b string) bool {
+	t.Helper()
+	var av, bv any
+	if err := json.Unmarshal([]byte(a), &av); err != nil {
+		t.Fatalf("left not JSON (%q): %v", a, err)
+	}
+	if err := json.Unmarshal([]byte(b), &bv); err != nil {
+		t.Fatalf("right not JSON (%q): %v", b, err)
+	}
+	return reflect.DeepEqual(av, bv)
 }
 
 // ---- helpers ----

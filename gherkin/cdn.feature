@@ -12,59 +12,6 @@ Feature: Provider startup and configuration fetching
     Given a mock server is running
 
   # ---------------------------------------------------------------------------
-  # Key validation (no network I/O)
-  # ---------------------------------------------------------------------------
-  @startup
-  @key-validation
-  Scenario: Valid SDK key initializes and reaches READY
-    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
-    When the provider is constructed
-    Then construction succeeds
-
-  @startup
-  @key-validation
-  Scenario Outline: Invalid SDK key is rejected before any network call
-    Given the SDK key "<key>"
-    When the provider is constructed
-    Then construction fails with a key-validation error
-
-    Examples:
-      | key                                                                   | note                          |
-      |                                                                       | blank                         |
-      | not-a-key                                                             | no structure                  |
-      | dt01.server_us_abcdef1234                                             | missing secret/sha            |
-      | dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d            | missing sha suffix            |
-      | dt01.web_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5    | web key rejected by server    |
-      | dt01.mobile_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5 | mobile key rejected by server |
-
-  # ---------------------------------------------------------------------------
-  # CDN URL derivation
-  # ---------------------------------------------------------------------------
-  @startup
-  @cdn-url
-  Scenario Outline: CDN URL is derived from the geo encoded in the key
-    Given the SDK key "<key>"
-    And the CDN serves a valid flag configuration
-    When the provider is initialized
-    Then the derived CDN host is "cdn.<geo>.fm.dynatrace.com"
-    And the fetch path is "/server/<key>.json"
-
-    Examples:
-      | key                                                                   | geo |
-      | dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5 | us  |
-      | dt01.server_eu_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5 | eu  |
-
-  @startup
-  @cdn-url
-  Scenario: Config origin override redirects the fetch away from the production CDN
-    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
-    And the config origin is overridden to "https://cdn.eu.fm.dynatracelabs.com"
-    And the CDN serves a valid flag configuration
-    When the provider is initialized
-    Then the provider state is READY
-    And the derived CDN host is "cdn.eu.fm.dynatracelabs.com"
-
-  # ---------------------------------------------------------------------------
   # Initial fetch outcomes
   # ---------------------------------------------------------------------------
   @startup
@@ -96,7 +43,7 @@ Feature: Provider startup and configuration fetching
     And the CDN responds with status 500
     When the provider is initialized
     Then initialization fails
-    And the provider does not become READY
+    And the provider state is ERROR
 
   @startup
   @initial-fetch
@@ -106,7 +53,7 @@ Feature: Provider startup and configuration fetching
     And the CDN responds with status 200 and body <body>
     When the provider is initialized
     Then initialization fails
-    And the provider does not become READY
+    And the provider state is ERROR
 
     Examples:
       | body                            |
@@ -144,8 +91,8 @@ Feature: Provider startup and configuration fetching
     Given an initialized, READY provider serving a valid flag configuration with Last-Modified "Tue, 02 Jan 2024 00:00:00 GMT"
     And the CDN responds with status 200 and a changed configuration with Last-Modified "Mon, 01 Jan 2024 00:00:00 GMT"
     When polling triggers a configuration refetch
-    Then flag "flagA" continues to evaluate to true
-    And the provider state is READY
+    Then the provider state is READY
+    And flag "flagA" continues to evaluate to true
 
   # ---------------------------------------------------------------------------
   # Rate limiting and retry

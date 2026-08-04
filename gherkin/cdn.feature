@@ -61,6 +61,15 @@ Feature: Provider startup and configuration fetching
       | "this-is-not-valid-flag-config" |
       | null                            |
 
+  @startup
+  @key-validation
+  @failure
+  Scenario: A malformed SDK key fails initialization
+    Given the SDK key "not-a-valid-key"
+    When the provider is initialized
+    Then initialization fails
+    And the provider state is NOT_READY
+
   # ---------------------------------------------------------------------------
   # Conditional revalidation on subsequent fetches
   # ---------------------------------------------------------------------------

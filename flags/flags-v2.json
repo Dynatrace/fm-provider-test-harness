@@ -1,0 +1,7 @@
+{
+  "metadata": { "version": "2" },
+  "flags": {
+    "flagA": { "state": "ENABLED", "defaultVariant": "off", "variants": { "on": true, "off": false } },
+    "flagB": { "state": "ENABLED", "defaultVariant": "on", "variants": { "on": true, "off": false } }
+  }
+}

@@ -96,7 +96,7 @@ Feature: Provider startup and configuration fetching
   @polling
   @revalidation
   @stale-node
-  Scenario: A 200 whose Last-Modified is not newer or has the same ETag is ignored (stale-node defense)
+  Scenario: A 200 whose Last-Modified is not newer is ignored (stale-node defense)
     Given an initialized, READY provider serving the "flags-v1" flag configuration with "Last-Modified" header "Tue, 02 Jan 2024 00:00:00 GMT"
     And the CDN responds with status 200 and the "flags-v2" flag configuration with "Last-Modified" header "Mon, 01 Jan 2024 00:00:00 GMT"
     When polling triggers a configuration refetch

@@ -12,7 +12,7 @@ env:
   REGISTRY: ghcr.io
   # Image name under the registry org. Change here (and in docker-compose.yaml)
   # if you rename the published image.
-  IMAGE_NAME: dynatrace/fm-provider-mock-backend
+  IMAGE_NAME: dynatrace/fm-provider-mock-server
 
 jobs:
   release-please:
@@ -61,7 +61,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push mock backend image
+      - name: Build and push mock server image
         uses: docker/build-push-action@v6
         with:
           context: mockserver

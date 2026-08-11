@@ -15,8 +15,8 @@ go test ./...            # unit tests (in-memory, no sockets)
 Docker (local build):
 
 ```bash
-docker build -t fm-provider-mock-backend:dev .
-docker run --rm -p 8080:8080 fm-provider-mock-backend:dev
+docker build -t fm-provider-mock-server:dev .
+docker run --rm -p 8080:8080 fm-provider-mock-server:dev
 ```
 
 ## Published image
@@ -25,8 +25,8 @@ Releases are cut by [release-please](../.release-please-config.json) and each re
 multi-arch (`linux/amd64,linux/arm64`) image to GHCR:
 
 ```
-ghcr.io/dynatrace/fm-provider-mock-backend:vX.Y.Z
-ghcr.io/dynatrace/fm-provider-mock-backend:latest
+ghcr.io/dynatrace/fm-provider-mock-server:vX.Y.Z
+ghcr.io/dynatrace/fm-provider-mock-server:latest
 ```
 
 Provider suites embed this repo as a git submodule and **read the matching version from
@@ -35,7 +35,7 @@ drift from the spec commit the submodule is pinned to. Wire that value into the 
 override (e.g. `MOCKSERVER_IMAGE` / `-Dmockserver.image=...`), for example:
 
 ```bash
-docker pull "ghcr.io/dynatrace/fm-provider-mock-backend:v$(cat version.txt)"
+docker pull "ghcr.io/dynatrace/fm-provider-mock-server:v$(cat version.txt)"
 ```
 
 ## Provider-facing endpoints

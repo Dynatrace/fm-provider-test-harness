@@ -32,7 +32,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("mock backend listening on %s", addr)
+		log.Printf("mock server listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("server error: %v", err)
 		}

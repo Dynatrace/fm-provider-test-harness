@@ -1,0 +1,39 @@
+{
+  "release-type": "simple",
+  "prerelease": false,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "include-v-in-tag": true,
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "docker-compose.yaml",
+          "replacements": [
+            {
+              "type": "string",
+              "search": "\\$\\{VERSION:-v([0-9]+\\.[0-9]+\\.[0-9]+)\\}",
+              "replace": "${VERSION:-v${version}}"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "changelog-sections": [
+    { "type": "feat", "section": "✨ New Features" },
+    { "type": "fix", "section": "🐛 Bug Fixes" },
+    { "type": "perf", "section": "🚀 Performance" },
+    { "type": "refactor", "section": "🔄 Refactoring" },
+    { "type": "deps", "section": "📦 Dependencies" },
+    { "type": "docs", "section": "📚 Documentation" },
+    { "type": "chore", "section": "🧹 Chore" },
+    { "type": "revert", "section": "🔙 Reverts" },
+    { "type": "build", "section": "🛠️ Build", "hidden": true },
+    { "type": "ci", "section": "🚦 CI", "hidden": true },
+    { "type": "style", "section": "🎨 Styling", "hidden": true },
+    { "type": "test", "section": "🧪 Tests", "hidden": true }
+  ]
+}

@@ -1,0 +1,12 @@
+# Convenience for running the published mock server locally.
+#   docker compose up                      # pulls the default (released) version
+#   VERSION=v0.3.0 docker compose up        # pin a specific version
+#   IMAGE=local/mockserver VERSION=dev docker compose up   # use a locally built image
+
+services:
+  mockserver:
+    image: ${IMAGE:-ghcr.io/dynatrace/fm-provider-mock-server}:${VERSION:-v0.0.0} # x-release-please-version
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"

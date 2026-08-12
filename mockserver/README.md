@@ -12,15 +12,31 @@ go run .                 # listens on :8080 (override with PORT)
 go test ./...            # unit tests (in-memory, no sockets)
 ```
 
-Docker:
+Docker (local build):
 
 ```bash
-docker build -t openfeature-provider-mock-backend:dev .
-docker run --rm -p 8080:8080 openfeature-provider-mock-backend:dev
+docker build -t fm-provider-mock-server:dev .
+docker run --rm -p 8080:8080 fm-provider-mock-server:dev
 ```
 
-The published, versioned image is what provider suites pull (e.g. via `MOCKSERVER_IMAGE` /
-`-Dmockserver.image=...` in the Java harness).
+## Published image
+
+Releases are cut by [release-please](../.release-please-config.json) and each release publishes a
+multi-arch (`linux/amd64,linux/arm64`) image to GHCR:
+
+```
+ghcr.io/dynatrace/fm-provider-mock-server:vX.Y.Z
+ghcr.io/dynatrace/fm-provider-mock-server:latest
+```
+
+Provider suites embed this repo as a git submodule and **read the matching version from
+[`version.txt`](../version.txt)** (bumped atomically with the release tag), so the image can never
+drift from the spec commit the submodule is pinned to. Wire that value into the harness's image
+override (e.g. `MOCKSERVER_IMAGE` / `-Dmockserver.image=...`), for example:
+
+```bash
+docker pull "ghcr.io/dynatrace/fm-provider-mock-server:v$(cat version.txt)"
+```
 
 ## Provider-facing endpoints
 

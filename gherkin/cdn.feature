@@ -4,10 +4,6 @@ Feature: Provider startup and configuration fetching
   keep it fresh via conditional requests
   So that evaluations are served from a correct, up-to-date configuration.
 
-  # SDK key format: dt{NN}.server_{geo}_{rand}.{secret}_{sha}
-  #   e.g. dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5
-  # The geo segment ("us", "eu", ...) drives the production CDN host:
-  #   https://cdn.{geo}.fm.dynatrace.com/server/{key}.json
   Background:
     Given a mock server is running
 
@@ -82,7 +78,7 @@ Feature: Provider startup and configuration fetching
     When polling triggers a configuration refetch
     Then the provider state is "READY"
     And flag "flagA" continues to evaluate to true
-    And the CDN received at least 2 requests
+    And the CDN received 2 requests
 
   @polling
   @revalidation
@@ -112,7 +108,7 @@ Feature: Provider startup and configuration fetching
     When polling triggers a configuration refetch
     Then the provider state is "READY"
     And flag "flagA" continues to evaluate to true
-    And the second CDN request has the "If-None-Match" header "v1"
+    And the 2. CDN request has the "If-None-Match" header "v1"
 
   # ---------------------------------------------------------------------------
   # Rate limiting and retry

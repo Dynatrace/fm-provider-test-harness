@@ -5,7 +5,7 @@
 
 services:
   mockserver:
-    image: ${IMAGE:-ghcr.io/dynatrace/fm-provider-mock-server}:${VERSION:-v0.0.0} # x-release-please-version
+    image: ${IMAGE:-ghcr.io/dynatrace/fm-provider-mock-server}:${VERSION:-v1.0.0} # x-release-please-version
     ports:
       - "8080:8080"
     environment:

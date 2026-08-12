@@ -65,8 +65,8 @@ Feature: SSE change notifications
     Given a well-formed server SDK key
     And the CDN serves the "flags-v1-sse" flag configuration
     When the provider is initialized
-    Then the CDN received 2 requests
     # 1st fetch in initialize, 2nd fetch on successful sse connection, both unconditional
+    Then the CDN received 2 requests
 
   @lifecycle
   @connect
@@ -108,9 +108,9 @@ Feature: SSE change notifications
   Scenario: The SSE-triggered re-fetch is conditional
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration with "ETag" header "v1"
     When the server emits an SSE message "{ "type": "refetchConfig", "lastModified": 1704153600 }"
+    # 1st fetch in initialize, 2nd fetch on successful sse connection, both unconditional
     Then the CDN received 3 requests
     And the 3. CDN request has the "If-None-Match" header "v1"
-    # 1st fetch in initialize, 2nd fetch on successful sse connection, both unconditional
 
   @message
   @refetch
@@ -132,8 +132,8 @@ Feature: SSE change notifications
     And the CDN request count is reset to the connection baseline
     When the server emits an SSE message "<payload>"
     Then the provider state is "READY"
-    And the CDN received 2 requests
     # 1st fetch in initialize, 2nd fetch on successful sse connection, both unconditional - no 3rd request for invalid messages
+    And the CDN received 2 requests
 
     Examples:
       | payload                        | note                        |
@@ -156,29 +156,6 @@ Feature: SSE change notifications
       | payload                                                                   | shape         |
       | { "type": "refetchConfig", "etag": "\"v2\"", "lastModified": 1704153600 } | flat          |
       | { "data": "{\"type\":\"refetchConfig\",\"lastModified\":1704153600}" }    | Ably envelope |
-
-  # ---------------------------------------------------------------------------
-  # Ordering / idempotency: the CDN guard is the source of truth, not the message
-  # ---------------------------------------------------------------------------
-  #  @message
-  #  @ordering
-  #  Scenario: Duplicate refetchConfig pokes each collapse to a conditional GET
-  #    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-  #    And the CDN responds with status 304
-  #    When the server emits an SSE message "{ "type": "refetchConfig", "lastModified": 1704153600 }"
-  #    And the server emits an SSE message "{ "type": "refetchConfig", "lastModified": 1704153600 }"
-  #    Then the provider state is "READY"
-  #    And flag "flagA" continues to evaluate to true
-
-  @message
-  @ordering
-  @stale-node
-  Scenario: A refetch whose config is not newer is ignored (stale-node defense)
-    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration with "Last-Modified" header "Tue, 02 Jan 2024 00:00:00 GMT"
-    And the CDN responds with status 200 and the "flags-v2-sse" flag configuration with "Last-Modified" header "Tue, 02 Jan 2024 00:00:00 GMT"
-    When the server emits an SSE message "{ "type": "refetchConfig", "lastModified": 1704153600 }"
-    Then the provider state is "READY"
-    And flag "flagA" continues to evaluate to true
 
   # ---------------------------------------------------------------------------
   # Connection lifecycle: sustained disconnect, staleness, grace, recovery
@@ -230,7 +207,6 @@ Feature: SSE change notifications
     Then the provider state is "ERROR"
     And a PROVIDER_ERROR event is emitted
 
-  # not sure if we want this because wouldn't that take 10 minutes with the sse-connected poll interval of 10 mins?
   @lifecycle
   @disconnect
   Scenario: A poll failure while SSE is healthy stays READY

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.0.0...v1.0.1) (2026-08-17)
+
+
+### 🧹 Chore
+
+* prep for public release ([#9](https://github.com/Dynatrace/fm-provider-test-harness/issues/9)) ([9c892b2](https://github.com/Dynatrace/fm-provider-test-harness/commit/9c892b208612af81dce8492c8e06917fdcba19af))
+
 ## 1.0.0 (2026-08-12)
 
 

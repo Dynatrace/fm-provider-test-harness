@@ -291,6 +291,37 @@ func TestSSEEmitForwardsPayloadVerbatim(t *testing.T) {
 	}
 }
 
+func TestSSEClientCount(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+
+	if got := sseClients(t, h); got != 0 {
+		t.Fatalf("initial sse clients = %d, want 0", got)
+	}
+
+	ch1 := make(chan string, 1)
+	s.state.addSSEClient(ch1)
+	if got := sseClients(t, h); got != 1 {
+		t.Fatalf("after one connect sse clients = %d, want 1", got)
+	}
+
+	ch2 := make(chan string, 1)
+	s.state.addSSEClient(ch2)
+	if got := sseClients(t, h); got != 2 {
+		t.Fatalf("after two connects sse clients = %d, want 2", got)
+	}
+
+	s.state.removeSSEClient(ch1)
+	if got := sseClients(t, h); got != 1 {
+		t.Fatalf("after one disconnect sse clients = %d, want 1", got)
+	}
+
+	s.state.removeSSEClient(ch2)
+	if got := sseClients(t, h); got != 0 {
+		t.Fatalf("after all disconnect sse clients = %d, want 0", got)
+	}
+}
+
 func TestSSEEmitRejectsInvalidJSON(t *testing.T) {
 	h := NewServer().Handler()
 	rec := do(t, h, "POST", "/__control__/sse/emit", `not json`)
@@ -334,6 +365,21 @@ func getRequests(t *testing.T, h http.Handler) []cdnRequest {
 		t.Fatalf("decode requests: %v", err)
 	}
 	return resp.Requests
+}
+
+func sseClients(t *testing.T, h http.Handler) int {
+	t.Helper()
+	rec := do(t, h, "GET", "/__control__/sse/clients", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get sse clients = %d, want 200", rec.Code)
+	}
+	var resp struct {
+		Clients int `json:"clients"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode sse clients: %v", err)
+	}
+	return resp.Clients
 }
 
 func getMetricsRequests(t *testing.T, h http.Handler) []metricsRequest {

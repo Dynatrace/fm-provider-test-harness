@@ -51,6 +51,14 @@ func (s *Server) handleGetMetrics(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// handleSSEClients reports how many SSE subscribers are currently connected
+func (s *Server) handleSSEClients(w http.ResponseWriter, _ *http.Request) {
+	resp := struct {
+		Clients int `json:"clients"`
+	}{Clients: s.state.sseClientCount()}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // handleSSEEmit broadcasts the posted JSON to every connected SSE subscriber verbatim.
 // json.Compact validates the body is JSON and strips insignificant whitespace (incl.
 // newlines) so the result stays a single line safe for `data: <payload>\n\n` framing.

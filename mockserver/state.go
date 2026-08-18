@@ -134,6 +134,13 @@ func (s *state) removeSSEClient(ch chan string) {
 	delete(s.sseClients, ch)
 }
 
+// sseClientCount returns the number of SSE subscribers currently connected.
+func (s *state) sseClientCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.sseClients)
+}
+
 // broadcast delivers payload to every connected SSE subscriber without blocking on slow clients.
 func (s *state) broadcast(payload string) {
 	s.mu.Lock()

@@ -7,7 +7,7 @@ Feature: SSE change notifications
   So that flag changes are picked up promptly without relying on aggressive polling.
 
   Background:
-    Given a mock server is running
+    Given a mock server with SSE enabled is running
 
   # ---------------------------------------------------------------------------
   # Stream discovery from CDN config
@@ -75,7 +75,6 @@ Feature: SSE change notifications
     Given a well-formed server SDK key
     And the CDN serves the "flags-v1-sse" flag configuration
     When the provider is initialized
-    And the SSE stream becomes connected
     Then the active poll interval is the SSE-connected interval
 
   @lifecycle
@@ -84,7 +83,7 @@ Feature: SSE change notifications
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
     When the SSE stream drops and reconnects within the disconnect debounce window
     Then the provider state is "READY"
-    And the provider triggers an immediate CDN fetch
+    # 1st fetch in initialize, 2nd fetch on successful sse connection, 3rd on reconnection
     And the CDN recieved 3 requests
 
   # ---------------------------------------------------------------------------
@@ -129,7 +128,6 @@ Feature: SSE change notifications
   @ignored
   Scenario Outline: Messages that are not actionable trigger no re-fetch
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    And the CDN request count is reset to the connection baseline
     When the server emits an SSE message "<payload>"
     Then the provider state is "READY"
     # 1st fetch in initialize, 2nd fetch on successful sse connection, both unconditional - no 3rd request for invalid messages
@@ -190,7 +188,7 @@ Feature: SSE change notifications
     When the SSE stream drops and stays down past the disconnect debounce window of 5 seconds
     Then the provider state is "STALE"
     And a PROVIDER_STALE event is emitted
-    When the SSE stream becomes connected
+    When the SSE stream reconnects
     Then the provider state is "READY"
     And a PROVIDER_READY event is emitted
 

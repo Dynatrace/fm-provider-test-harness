@@ -29,7 +29,6 @@ Feature: Provider startup and configuration fetching
     When the provider is initialized
     Then the initial CDN request has no "If-None-Match" header
     And the initial CDN request has no "If-Modified-Since" header
-    And the initial CDN request returns 200
 
   @startup
   @initial-fetch

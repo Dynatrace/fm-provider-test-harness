@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 )
 
 // This file holds the HTTP control plane under /__control__ to script CDN responses,
@@ -57,6 +58,38 @@ func (s *Server) handleSSEClients(w http.ResponseWriter, _ *http.Request) {
 		Clients int `json:"clients"`
 	}{Clients: s.state.sseClientCount()}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleSSEDisconnect drops every connected SSE subscriber and gates new /sse connections according
+// to the optional reconnectSeconds field:
+//
+//	omitted/null : refuse new connections (503) until /reset (or a later reconnectSeconds:0 call)
+//	0            : accept new connections immediately, clearing any active outage (reconnect now)
+//	> 0          : refuse new connections for that many seconds, then auto-recover
+//	< 0          : rejected with 400
+//
+// The body is optional; an empty body means the omitted case. Only malformed JSON is an error.
+func (s *Server) handleSSEDisconnect(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ReconnectSeconds *float64 `json:"reconnectSeconds"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err != io.EOF {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var outage sseOutage
+	switch {
+	case body.ReconnectSeconds == nil:
+		outage.forever = true
+	case *body.ReconnectSeconds < 0:
+		http.Error(w, "reconnectSeconds must not be negative", http.StatusBadRequest)
+		return
+	default:
+		outage.window = time.Duration(*body.ReconnectSeconds * float64(time.Second))
+	}
+	s.state.disconnectSSEClients(outage)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleSSEEmit broadcasts the posted JSON to every connected SSE subscriber verbatim.

@@ -13,7 +13,7 @@ Feature: Provider startup and configuration fetching
   @startup
   @initial-fetch
   Scenario: Successful initial fetch loads flags and reaches READY
-    Given a well-formed server SDK key
+    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
     And the CDN serves the "flags-v1" flag configuration
     When the provider is initialized
     Then initialization succeeds
@@ -24,7 +24,7 @@ Feature: Provider startup and configuration fetching
   @initial-fetch
   @conditional-headers
   Scenario: The initial fetch is unconditional
-    Given a well-formed server SDK key
+    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
     And the CDN serves the "flags-v1" flag configuration
     When the provider is initialized
     Then the initial CDN request has no "If-None-Match" header
@@ -34,7 +34,7 @@ Feature: Provider startup and configuration fetching
   @initial-fetch
   @failure
   Scenario: A 5xx initial response fails initialization
-    Given a well-formed server SDK key
+    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
     And the CDN responds with status 500
     When the provider is initialized
     Then initialization fails
@@ -44,7 +44,7 @@ Feature: Provider startup and configuration fetching
   @initial-fetch
   @failure
   Scenario Outline: An invalid initial body fails initialization
-    Given a well-formed server SDK key
+    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
     And the CDN responds with status 200 and body <body>
     When the provider is initialized
     Then initialization fails

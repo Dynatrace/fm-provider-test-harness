@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"time"
 )
 
 // cdnResponse is a single programmed CDN response.
@@ -48,14 +49,20 @@ type state struct {
 	// Metrics-ingest cdnRequests observed since the last reset, in arrival order.
 	metricsRequests []metricsRequest
 
-	// Connected SSE subscribers. Each is a buffered channel of pre-formatted "data:" payloads.
-	sseClients map[chan string]struct{}
+	// Connected SSE subscribers. The key is the buffered channel of pre-formatted "data:" payloads;
+	// the value is a per-client channel closed to force the subscriber's handler to disconnect.
+	sseClients map[chan string]chan struct{}
+
+	// SSE outage gate (see disconnectSSEClients). New /sse connections are refused while
+	// sseClosedForever is set, or while now is before sseClosedUntil. Both zero => SSE is available.
+	sseClosedUntil   time.Time
+	sseClosedForever bool
 }
 
 func newState() *state {
 	return &state{
 		repeatLast: true,
-		sseClients: make(map[chan string]struct{}),
+		sseClients: make(map[chan string]chan struct{}),
 	}
 }
 
@@ -67,6 +74,8 @@ func (s *state) reset() {
 	s.cursor = 0
 	s.cdnRequests = nil
 	s.metricsRequests = nil
+	s.sseClosedUntil = time.Time{}
+	s.sseClosedForever = false
 }
 
 // programResponses replaces the CDN response program and rewinds the cursor. Recorded cdnRequests are
@@ -122,10 +131,14 @@ func (s *state) recordedMetricsRequests() []metricsRequest {
 	return out
 }
 
-func (s *state) addSSEClient(ch chan string) {
+// addSSEClient registers a subscriber and returns a channel that is closed when the client should
+// disconnect (either via disconnectSSEClients or normal teardown from removeSSEClient).
+func (s *state) addSSEClient(ch chan string) chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.sseClients[ch] = struct{}{}
+	done := make(chan struct{})
+	s.sseClients[ch] = done
+	return done
 }
 
 func (s *state) removeSSEClient(ch chan string) {
@@ -139,6 +152,52 @@ func (s *state) sseClientCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.sseClients)
+}
+
+// sseOutage describes what disconnectSSEClients should do to the /sse gate after dropping clients.
+type sseOutage struct {
+	// forever refuses new /sse connections until reset (or a subsequent clearing disconnect).
+	forever bool
+	// window, when > 0, refuses new /sse connections for that duration and then auto-recovers.
+	// A zero window (and forever == false) clears any active outage, accepting connections again.
+	window time.Duration
+}
+
+// disconnectSSEClients drops every connected SSE subscriber by closing each one's done channel and
+// applies the requested outage to the /sse gate. This lets suites exercise the provider's
+// reconnect/backoff behaviour: an indefinite outage (until reset), a fixed window, or an immediate
+// reconnect (a zero window, which also clears a previously-set outage).
+func (s *state) disconnectSSEClients(o sseOutage) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch {
+	case o.forever:
+		s.sseClosedForever = true
+		s.sseClosedUntil = time.Time{}
+	case o.window > 0:
+		s.sseClosedForever = false
+		s.sseClosedUntil = time.Now().Add(o.window)
+	default: // zero window => clear any outage and accept new connections immediately
+		s.sseClosedForever = false
+		s.sseClosedUntil = time.Time{}
+	}
+
+	for ch, done := range s.sseClients {
+		close(done)
+		delete(s.sseClients, ch)
+	}
+}
+
+// sseAvailable reports whether new SSE connections are currently accepted. It returns false during
+// an outage opened by disconnectSSEClients — indefinitely, or until the outage window elapses.
+func (s *state) sseAvailable() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sseClosedForever {
+		return false
+	}
+	return !time.Now().Before(s.sseClosedUntil)
 }
 
 // broadcast delivers payload to every connected SSE subscriber without blocking on slow clients.

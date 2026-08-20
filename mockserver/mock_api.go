@@ -45,6 +45,11 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
+	if !s.state.sseAvailable() {
+		http.Error(w, "sse currently unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -58,12 +63,14 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 
 	ch := make(chan string, 16)
-	s.state.addSSEClient(ch)
+	done := s.state.addSSEClient(ch)
 	defer s.state.removeSSEClient(ch)
 
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-done: // server-initiated disconnect via /__control__/sse/disconnect
 			return
 		case payload := <-ch:
 			if _, err := w.Write([]byte("data: " + payload + "\n\n")); err != nil {

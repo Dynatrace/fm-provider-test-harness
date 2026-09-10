@@ -92,21 +92,20 @@ func (s *Server) handleSSEDisconnect(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleSSEEmit broadcasts the posted JSON to every connected SSE subscriber verbatim.
-// json.Compact validates the body is JSON and strips insignificant whitespace (incl.
-// newlines) so the result stays a single line safe for `data: <payload>\n\n` framing.
+// handleSSEEmit broadcasts the posted body to every connected SSE subscriber verbatim, compacting
+// it when it is JSON. Non-JSON is allowed so suites can put an unparseable payload on the wire.
 func (s *Server) handleSSEEmit(w http.ResponseWriter, r *http.Request) {
 	raw, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	payload := string(raw)
 	var buf bytes.Buffer
-	if err := json.Compact(&buf, raw); err != nil {
-		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
-		return
+	if err := json.Compact(&buf, raw); err == nil {
+		payload = buf.String()
 	}
-	s.state.broadcast(buf.String())
+	s.state.broadcast(payload)
 	w.WriteHeader(http.StatusNoContent)
 }
 

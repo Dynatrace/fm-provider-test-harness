@@ -73,12 +73,25 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 		case <-done: // server-initiated disconnect via /__control__/sse/disconnect
 			return
 		case payload := <-ch:
-			if _, err := w.Write([]byte("data: " + payload + "\n\n")); err != nil {
+			if _, err := w.Write([]byte(frameSSE(payload))); err != nil {
 				return
 			}
 			flusher.Flush()
 		}
 	}
+}
+
+// frameSSE renders payload as one SSE event, using one `data:` line per line so a multi-line
+// payload (emit forwards non-JSON verbatim) doesn't end the event at its first newline.
+func frameSSE(payload string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(strings.ReplaceAll(payload, "\r\n", "\n"), "\n") {
+		b.WriteString("data: ")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+	return b.String()
 }
 
 // flattenHeaders lower-cases header names and keeps the first value of each, matching the

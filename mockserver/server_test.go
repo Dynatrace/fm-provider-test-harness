@@ -443,11 +443,38 @@ func TestSSEDisconnectRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestSSEEmitRejectsInvalidJSON(t *testing.T) {
-	h := NewServer().Handler()
-	rec := do(t, h, "POST", "/__control__/sse/emit", `not json`)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("sse emit invalid JSON = %d, want 400", rec.Code)
+func TestSSEEmitForwardsNonJSONVerbatim(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+	ch := make(chan string, 1)
+	s.state.addSSEClient(ch)
+	defer s.state.removeSSEClient(ch)
+
+	if rec := do(t, h, "POST", "/__control__/sse/emit", `not json`); rec.Code != http.StatusNoContent {
+		t.Fatalf("sse emit non-JSON = %d, want 204", rec.Code)
+	}
+
+	select {
+	case payload := <-ch:
+		if payload != `not json` {
+			t.Fatalf("broadcast = %q, want %q", payload, `not json`)
+		}
+	default:
+		t.Fatal("no SSE payload broadcast to subscriber")
+	}
+}
+
+func TestFrameSSESplitsMultiLinePayload(t *testing.T) {
+	// A single `data:` line would end the event at the first newline and read the rest as another
+	// event; the wire format carries a multi-line payload as one `data:` line per line.
+	if got, want := frameSSE(`{"a":1}`), "data: {\"a\":1}\n\n"; got != want {
+		t.Fatalf("frameSSE(single line) = %q, want %q", got, want)
+	}
+	if got, want := frameSSE("line1\nline2"), "data: line1\ndata: line2\n\n"; got != want {
+		t.Fatalf("frameSSE(multi line) = %q, want %q", got, want)
+	}
+	if got, want := frameSSE("line1\r\nline2"), "data: line1\ndata: line2\n\n"; got != want {
+		t.Fatalf("frameSSE(CRLF) = %q, want %q", got, want)
 	}
 }
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.0.1...v1.0.2) (2026-09-10)
+
+
+### 🧹 Chore
+
+* upgrade GitHub Actions to node24, ref: ASDY-27739 ([#12](https://github.com/Dynatrace/fm-provider-test-harness/issues/12)) ([bdb676d](https://github.com/Dynatrace/fm-provider-test-harness/commit/bdb676dafa8d12965ef5d779a7ee8c7d98a517c8))
+
 ## [1.0.1](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.0.0...v1.0.1) (2026-09-09)
 
 

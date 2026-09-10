@@ -38,6 +38,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /__control__/cdn/responses", s.handleProgramCDN)
 	mux.HandleFunc("GET /__control__/cdn/requests", s.handleGetRequests)
 	mux.HandleFunc("GET /__control__/metrics/requests", s.handleGetMetrics)
+	mux.HandleFunc("GET /__control__/sse/clients", s.handleSSEClients)
+	mux.HandleFunc("POST /__control__/sse/disconnect", s.handleSSEDisconnect)
 	mux.HandleFunc("POST /__control__/sse/emit", s.handleSSEEmit)
 
 	return logging(mux)

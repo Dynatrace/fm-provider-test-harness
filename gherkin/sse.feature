@@ -8,6 +8,7 @@ Feature: SSE change notifications
 
   Background:
     Given a mock server with SSE enabled is running
+    And an environment variable TEST_PROVIDER_TIMES_FACTOR set to 0.1
 
   # ---------------------------------------------------------------------------
   # Stream discovery from CDN config
@@ -75,13 +76,13 @@ Feature: SSE change notifications
     Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
     And the CDN serves the "flags-v1-sse" flag configuration
     When the provider is initialized
-    Then the active poll interval is the SSE-connected interval of 10 minutes
+    Then the active poll interval is the SSE_CONNECTED_POLL_INTERVAL
 
   @lifecycle
   @reconnect
   Scenario: A brief reconnect blip does not leave READY and pulls a catch-up fetch
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops for 2 seconds and reconnects within the disconnect debounce window of 5 seconds
+    When the SSE stream drops for 2 seconds and reconnects within the DISCONNECT_DEBOUNCE_TIME_WINDOW
     Then the provider state is "READY"
     # 1st fetch in initialize, 2nd fetch on successful sse connection, 3rd on reconnection
     And the CDN received 3 requests
@@ -173,20 +174,20 @@ Feature: SSE change notifications
   @polling
   Scenario: A sustained disconnect switches to the aggressive poll cadence and goes STALE
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops and stays down past the disconnect debounce window of 5 seconds
+    When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
     Then the provider state is "STALE"
     And a PROVIDER_STALE event is emitted
-    And the active poll interval is the SSE-disconnected interval of 10 seconds
+    And the active poll interval is the SSE_DISCONNECTED_POLL_INTERVAL
 
   @lifecycle
   @disconnect
   @recovery
   Scenario: A successful fetch while STALE recovers to READY
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops and stays down past the disconnect debounce window of 5 seconds
+    When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
     Then the provider state is "STALE"
     And a PROVIDER_STALE event is emitted
-    When polling triggers a configuration refetch after 10 seconds
+    When polling triggers a configuration refetch after the SSE_DISCONNECTED_POLL_INTERVAL
     Then the provider state is "READY"
     And a PROVIDER_READY event is emitted
 
@@ -195,7 +196,7 @@ Feature: SSE change notifications
   @recovery
   Scenario: Reconnecting the SSE stream while STALE recovers to READY
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops and stays down past the disconnect debounce window of 5 seconds
+    When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
     Then the provider state is "STALE"
     And a PROVIDER_STALE event is emitted
     When the SSE stream reconnects
@@ -207,7 +208,7 @@ Feature: SSE change notifications
   @grace
   Scenario: A disconnect that never recovers transitions STALE to ERROR after the grace period
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops and stays down past the disconnect debounce window of 5 seconds
+    When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
     Then the provider state is "STALE"
     And a PROVIDER_STALE event is emitted
     And the CDN responds with status 500
@@ -221,7 +222,7 @@ Feature: SSE change notifications
   Scenario: A poll failure while SSE is healthy stays READY
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
     And the CDN responds with status 500
-    When polling triggers a configuration refetch after 10 minutes
+    When polling triggers a configuration refetch after the SSE_CONNECTED_POLL_INTERVAL
     Then the provider state is "READY"
 
   # ---------------------------------------------------------------------------

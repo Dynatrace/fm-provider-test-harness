@@ -117,9 +117,9 @@ exact payload the provider ingested. The endpoint still always responds `202` to
 { "type": "refetchConfig", "etag": "\"v2\"", "lastModified": 1735776000 }
 ```
 
-Broadcasts the JSON object as the `data:` payload of an SSE event to every connected `/sse`
-subscriber. Not required by the startup/fetching spec (which drives refreshes via the provider's
-poll) but part of the shared contract for the SSE spec.
+Broadcasts the body as the `data:` payload of an SSE event to every connected `/sse` subscriber.
+JSON is compacted; anything else is forwarded verbatim, so a suite can put an unparseable payload
+on the wire. A multi-line payload is framed as one `data:` line per line.
 
 ## Design notes
 

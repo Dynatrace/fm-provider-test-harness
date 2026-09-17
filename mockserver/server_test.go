@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // do executes a request against the server handler using an in-memory recorder (no sockets).
@@ -291,11 +292,189 @@ func TestSSEEmitForwardsPayloadVerbatim(t *testing.T) {
 	}
 }
 
-func TestSSEEmitRejectsInvalidJSON(t *testing.T) {
+func TestSSEClientCount(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+
+	if got := sseClients(t, h); got != 0 {
+		t.Fatalf("initial sse clients = %d, want 0", got)
+	}
+
+	ch1 := make(chan string, 1)
+	s.state.addSSEClient(ch1)
+	if got := sseClients(t, h); got != 1 {
+		t.Fatalf("after one connect sse clients = %d, want 1", got)
+	}
+
+	ch2 := make(chan string, 1)
+	s.state.addSSEClient(ch2)
+	if got := sseClients(t, h); got != 2 {
+		t.Fatalf("after two connects sse clients = %d, want 2", got)
+	}
+
+	s.state.removeSSEClient(ch1)
+	if got := sseClients(t, h); got != 1 {
+		t.Fatalf("after one disconnect sse clients = %d, want 1", got)
+	}
+
+	s.state.removeSSEClient(ch2)
+	if got := sseClients(t, h); got != 0 {
+		t.Fatalf("after all disconnect sse clients = %d, want 0", got)
+	}
+}
+
+func TestSSEDisconnectDropsClients(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+
+	ch := make(chan string, 1)
+	done := s.state.addSSEClient(ch)
+
+	if rec := do(t, h, "POST", "/__control__/sse/disconnect", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("disconnect = %d, want 204", rec.Code)
+	}
+
+	select {
+	case <-done: // closed => the subscriber's handler would return and drop the connection
+	default:
+		t.Fatal("disconnect did not close the client's done channel")
+	}
+	if got := sseClients(t, h); got != 0 {
+		t.Fatalf("after disconnect sse clients = %d, want 0", got)
+	}
+}
+
+func TestSSEDisconnectWithoutReconnectStaysDownUntilReset(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+
+	// Omitted reconnectSeconds => indefinite outage until reset.
+	if rec := do(t, h, "POST", "/__control__/sse/disconnect", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("disconnect = %d, want 204", rec.Code)
+	}
+	if rec := do(t, h, "GET", "/sse", ""); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("sse during indefinite outage = %d, want 503", rec.Code)
+	}
+	// The outage does not lapse on its own.
+	time.Sleep(50 * time.Millisecond)
+	if s.state.sseAvailable() {
+		t.Fatal("indefinite outage must not lapse on its own")
+	}
+
+	// reset restores availability.
+	if rec := do(t, h, "POST", "/__control__/reset", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("reset = %d, want 204", rec.Code)
+	}
+	if !s.state.sseAvailable() {
+		t.Fatal("sse should be available after reset clears the indefinite outage")
+	}
+}
+
+func TestSSEDisconnectZeroReconnectsImmediately(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+
+	// Open an indefinite outage, then clear it with reconnectSeconds:0.
+	if rec := do(t, h, "POST", "/__control__/sse/disconnect", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("disconnect = %d, want 204", rec.Code)
+	}
+	if s.state.sseAvailable() {
+		t.Fatal("expected sse unavailable after indefinite disconnect")
+	}
+
+	if rec := do(t, h, "POST", "/__control__/sse/disconnect", `{"reconnectSeconds":0}`); rec.Code != http.StatusNoContent {
+		t.Fatalf("disconnect(0) = %d, want 204", rec.Code)
+	}
+	if !s.state.sseAvailable() {
+		t.Fatal("reconnectSeconds:0 must clear the outage and accept connections immediately")
+	}
+}
+
+func TestSSEDisconnectRejectsNegativeReconnect(t *testing.T) {
 	h := NewServer().Handler()
-	rec := do(t, h, "POST", "/__control__/sse/emit", `not json`)
+	rec := do(t, h, "POST", "/__control__/sse/disconnect", `{"reconnectSeconds":-1}`)
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("sse emit invalid JSON = %d, want 400", rec.Code)
+		t.Fatalf("disconnect(-1) = %d, want 400", rec.Code)
+	}
+}
+
+func TestSSEDisconnectOpensOutageWindow(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+
+	if rec := do(t, h, "POST", "/__control__/sse/disconnect", `{"reconnectSeconds":60}`); rec.Code != http.StatusNoContent {
+		t.Fatalf("disconnect = %d, want 204", rec.Code)
+	}
+
+	// New connections are refused with 503 during the outage window.
+	if rec := do(t, h, "GET", "/sse", ""); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("sse during outage = %d, want 503", rec.Code)
+	}
+
+	// reset clears the outage window.
+	if rec := do(t, h, "POST", "/__control__/reset", ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("reset = %d, want 204", rec.Code)
+	}
+	if !s.state.sseAvailable() {
+		t.Fatal("sse should be available after reset clears the outage window")
+	}
+}
+
+func TestSSEOutageWindowElapses(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+
+	do(t, h, "POST", "/__control__/sse/disconnect", `{"reconnectSeconds":0.2}`)
+	if rec := do(t, h, "GET", "/sse", ""); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("sse during outage = %d, want 503", rec.Code)
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	if !s.state.sseAvailable() {
+		t.Fatal("sse should be available once the outage window has elapsed")
+	}
+}
+
+func TestSSEDisconnectRejectsInvalidJSON(t *testing.T) {
+	h := NewServer().Handler()
+	rec := do(t, h, "POST", "/__control__/sse/disconnect", `not json`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("disconnect invalid JSON = %d, want 400", rec.Code)
+	}
+}
+
+func TestSSEEmitForwardsNonJSONVerbatim(t *testing.T) {
+	s := NewServer()
+	h := s.Handler()
+	ch := make(chan string, 1)
+	s.state.addSSEClient(ch)
+	defer s.state.removeSSEClient(ch)
+
+	if rec := do(t, h, "POST", "/__control__/sse/emit", `not json`); rec.Code != http.StatusNoContent {
+		t.Fatalf("sse emit non-JSON = %d, want 204", rec.Code)
+	}
+
+	select {
+	case payload := <-ch:
+		if payload != `not json` {
+			t.Fatalf("broadcast = %q, want %q", payload, `not json`)
+		}
+	default:
+		t.Fatal("no SSE payload broadcast to subscriber")
+	}
+}
+
+func TestFrameSSESplitsMultiLinePayload(t *testing.T) {
+	// A single `data:` line would end the event at the first newline and read the rest as another
+	// event; the wire format carries a multi-line payload as one `data:` line per line.
+	if got, want := frameSSE(`{"a":1}`), "data: {\"a\":1}\n\n"; got != want {
+		t.Fatalf("frameSSE(single line) = %q, want %q", got, want)
+	}
+	if got, want := frameSSE("line1\nline2"), "data: line1\ndata: line2\n\n"; got != want {
+		t.Fatalf("frameSSE(multi line) = %q, want %q", got, want)
+	}
+	if got, want := frameSSE("line1\r\nline2"), "data: line1\ndata: line2\n\n"; got != want {
+		t.Fatalf("frameSSE(CRLF) = %q, want %q", got, want)
 	}
 }
 
@@ -334,6 +513,21 @@ func getRequests(t *testing.T, h http.Handler) []cdnRequest {
 		t.Fatalf("decode requests: %v", err)
 	}
 	return resp.Requests
+}
+
+func sseClients(t *testing.T, h http.Handler) int {
+	t.Helper()
+	rec := do(t, h, "GET", "/__control__/sse/clients", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get sse clients = %d, want 200", rec.Code)
+	}
+	var resp struct {
+		Clients int `json:"clients"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode sse clients: %v", err)
+	}
+	return resp.Clients
 }
 
 func getMetricsRequests(t *testing.T, h http.Handler) []metricsRequest {

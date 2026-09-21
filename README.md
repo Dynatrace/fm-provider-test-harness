@@ -7,7 +7,7 @@ Contains:
 
 - **[`gherkin/`](gherkin)** - a language-agnostic Gherkin spec describing the behavior every provider
   must implement (startup, key validation, CDN config fetching, conditional revalidation, rate
-  limiting, basic evaluation).
+  limiting, poll cadence and overlapping polls, basic evaluation).
 - **[`mockserver/`](mockserver)** - a dependency-free Go service that emulates the backends a provider
   communicates with (CDN config endpoint, metrics ingest, SSE stream) plus an HTTP control plane to script
   responses and assert on what the provider sent. See the [mock server README](mockserver/README.md).

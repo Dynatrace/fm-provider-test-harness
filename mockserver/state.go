@@ -2,23 +2,34 @@ package main
 
 import (
 	"sync"
+	"time"
 )
 
 // cdnResponse is a single programmed CDN response.
 //
 // Body is a pointer so an explicitly-empty body ("body": "") can be distinguished from an absent
 // one (field omitted) — the former is served as a zero-length body, the latter as no body at all.
+//
+// DelayMs holds the response back before any status or body is written, so a scenario can make a
+// fetch outlive the provider's poll interval. The request is still recorded at arrival time, so
+// cadence assertions see the request when it was initiated, not when it was answered.
 type cdnResponse struct {
 	Status  int               `json:"status"`
 	Body    *string           `json:"body,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
+	DelayMs int               `json:"delayMs,omitempty"`
 }
 
 // cdnRequest is a CDN request the backend observed since the last reset.
+//
+// ReceivedAtMs is Unix epoch milliseconds at arrival, so a suite can assert on poll cadence
+// directly (providers.md §2.1 anchors the interval to request initiation) instead of inferring it
+// from request counts.
 type cdnRequest struct {
-	Method  string            `json:"method"`
-	Path    string            `json:"path"`
-	Headers map[string]string `json:"headers"`
+	Method       string            `json:"method"`
+	Path         string            `json:"path"`
+	Headers      map[string]string `json:"headers"`
+	ReceivedAtMs int64             `json:"receivedAtMs"`
 }
 
 // metricsRequest is a metrics-ingest request the backend observed since the last reset.
@@ -50,12 +61,17 @@ type state struct {
 
 	// Connected SSE subscribers. Each is a buffered channel of pre-formatted "data:" payloads.
 	sseClients map[chan string]struct{}
+
+	// now stamps cdnRequest.ReceivedAtMs. Overridable so tests can assert on cadence without
+	// depending on wall-clock timing.
+	now func() time.Time
 }
 
 func newState() *state {
 	return &state{
 		repeatLast: true,
 		sseClients: make(map[chan string]struct{}),
+		now:        time.Now,
 	}
 }
 

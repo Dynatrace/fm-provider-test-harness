@@ -23,7 +23,7 @@ Feature: Poll cadence and overlapping polls
   @overlap
   Scenario: The poll cadence is anchored to request initiation, not completion
     Given an initialized, READY provider serving the "flags-v1" flag configuration
-    And the CDN is programmed to respond slowly, taking longer than the poll interval
+    And the CDN is programmed to respond slowly, taking longer than 3 poll intervals
     When 3 poll intervals elapse
     Then the CDN has received 3 further requests
     And consecutive CDN requests are one poll interval apart

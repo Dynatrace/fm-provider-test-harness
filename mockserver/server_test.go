@@ -207,6 +207,13 @@ func TestDelayedResponseIsHeldBackButRecordedAtArrival(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+	// The request must be visible *before* the response completes; without this the test would
+	// still pass if recording moved to after the delay.
+	select {
+	case <-done:
+		t.Fatal("response completed before the request was observed; recording is not at arrival")
+	default:
+	}
 	if reqs[0].ReceivedAtMs < start.UnixMilli() {
 		t.Fatalf("receivedAtMs = %d, want >= %d", reqs[0].ReceivedAtMs, start.UnixMilli())
 	}

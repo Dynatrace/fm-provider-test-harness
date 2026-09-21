@@ -12,10 +12,9 @@ import (
 
 func (s *Server) handleCDN(w http.ResponseWriter, r *http.Request) {
 	resp, ok := s.state.nextResponse(cdnRequest{
-		Method:       r.Method,
-		Path:         r.URL.Path,
-		Headers:      flattenHeaders(r.Header),
-		ReceivedAtMs: time.Now().UnixMilli(),
+		Method:  r.Method,
+		Path:    r.URL.Path,
+		Headers: flattenHeaders(r.Header),
 	})
 	if !ok {
 		http.Error(w, "no CDN response programmed", http.StatusInternalServerError)

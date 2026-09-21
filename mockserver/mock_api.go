@@ -15,7 +15,7 @@ func (s *Server) handleCDN(w http.ResponseWriter, r *http.Request) {
 		Method:       r.Method,
 		Path:         r.URL.Path,
 		Headers:      flattenHeaders(r.Header),
-		ReceivedAtMs: s.state.now().UnixMilli(),
+		ReceivedAtMs: time.Now().UnixMilli(),
 	})
 	if !ok {
 		http.Error(w, "no CDN response programmed", http.StatusInternalServerError)

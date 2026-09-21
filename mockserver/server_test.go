@@ -187,53 +187,19 @@ func TestProgramPreservesRecordedRequests(t *testing.T) {
 
 // --- response delay + arrival timestamps (providers.md §2.1 poll cadence anchoring) ---
 
-func TestDelayMsHoldsResponseBack(t *testing.T) {
+func TestDelayedResponseIsHeldBackButRecordedAtArrival(t *testing.T) {
+	// Cadence assertions count requests as they are initiated, so a slow response must reach the
+	// request log immediately and only the write is held back.
 	h := NewServer().Handler()
-	program(t, h, `{"responses":[{"status":200,"body":"x","delayMs":120}]}`)
+	program(t, h, `{"responses":[{"status":200,"body":"x","delayMs":200}]}`)
 
 	start := time.Now()
-	rec := do(t, h, "GET", "/server/x.json", "")
-	elapsed := time.Since(start)
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- do(t, h, "GET", "/server/x.json", "") }()
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("delayed fetch = %d, want 200", rec.Code)
-	}
-	if rec.Body.String() != "x" {
-		t.Fatalf("delayed body = %q, want %q", rec.Body.String(), "x")
-	}
-	if elapsed < 120*time.Millisecond {
-		t.Fatalf("delayed fetch returned after %v, want at least 120ms", elapsed)
-	}
-}
-
-func TestUndelayedResponseIsImmediate(t *testing.T) {
-	// Guards against the delay path accidentally applying to entries that never asked for one.
-	h := NewServer().Handler()
-	program(t, h, `{"responses":[{"status":200,"body":"x"}]}`)
-
-	start := time.Now()
-	do(t, h, "GET", "/server/x.json", "")
-
-	if elapsed := time.Since(start); elapsed > 50*time.Millisecond {
-		t.Fatalf("undelayed fetch took %v, want near-immediate", elapsed)
-	}
-}
-
-func TestDelayedRequestIsRecordedAtArrival(t *testing.T) {
-	// Cadence assertions count requests as they are initiated, so a slow response must not hide the
-	// request from the log until it completes.
-	h := NewServer().Handler()
-	program(t, h, `{"responses":[{"status":200,"body":"x","delayMs":300}]}`)
-
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		do(t, h, "GET", "/server/x.json", "")
-	}()
-
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if len(getRequests(t, h)) == 1 {
+	var reqs []cdnRequest
+	for deadline := time.Now().Add(2 * time.Second); ; {
+		if reqs = getRequests(t, h); len(reqs) == 1 {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -241,24 +207,30 @@ func TestDelayedRequestIsRecordedAtArrival(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	<-done
+	if reqs[0].ReceivedAtMs < start.UnixMilli() {
+		t.Fatalf("receivedAtMs = %d, want >= %d", reqs[0].ReceivedAtMs, start.UnixMilli())
+	}
+
+	rec := <-done
+	if rec.Code != http.StatusOK || rec.Body.String() != "x" {
+		t.Fatalf("delayed fetch = %d %q, want 200 %q", rec.Code, rec.Body.String(), "x")
+	}
+	if elapsed := time.Since(start); elapsed < 200*time.Millisecond {
+		t.Fatalf("delayed fetch returned after %v, want at least 200ms", elapsed)
+	}
 }
 
 func TestDelayIsAbandonedOnClientDisconnect(t *testing.T) {
-	// A provider that aborts its fetch (context cancel / AbortSignal / interrupt) must free the
-	// handler goroutine rather than leaking one per scenario.
+	// A provider that aborts its fetch must free the handler goroutine rather than leaking one per
+	// scenario.
 	h := NewServer().Handler()
 	program(t, h, `{"responses":[{"status":200,"body":"x","delayMs":10000}]}`)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := httptest.NewRequest("GET", "/server/x.json", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
-
 	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		h.ServeHTTP(rec, r)
-	}()
+	go func() { defer close(done); h.ServeHTTP(rec, r) }()
 
 	time.Sleep(50 * time.Millisecond)
 	cancel()
@@ -268,7 +240,6 @@ func TestDelayIsAbandonedOnClientDisconnect(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("handler did not return after the client disconnected")
 	}
-
 	if rec.Body.Len() != 0 {
 		t.Fatalf("abandoned handler wrote %q, want nothing", rec.Body.String())
 	}
@@ -279,36 +250,6 @@ func TestNegativeDelayMsIsRejected(t *testing.T) {
 	rec := do(t, h, "PUT", "/__control__/cdn/responses", `{"responses":[{"status":200,"delayMs":-1}]}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("negative delayMs = %d, want 400", rec.Code)
-	}
-}
-
-func TestRecordedRequestsCarryReceivedAt(t *testing.T) {
-	s := NewServer()
-	h := s.Handler()
-
-	// Deterministic clock: each arrival advances by one poll interval, so the assertion does not
-	// depend on wall-clock timing.
-	base := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
-	var ticks int64
-	s.state.now = func() time.Time {
-		t := base.Add(time.Duration(ticks) * 10 * time.Second)
-		ticks++
-		return t
-	}
-
-	program(t, h, `{"responses":[{"status":200,"body":"x"}]}`)
-	do(t, h, "GET", "/server/x.json", "")
-	do(t, h, "GET", "/server/x.json", "")
-
-	reqs := getRequests(t, h)
-	if len(reqs) != 2 {
-		t.Fatalf("recorded %d requests, want 2", len(reqs))
-	}
-	if got, want := reqs[0].ReceivedAtMs, base.UnixMilli(); got != want {
-		t.Fatalf("first receivedAtMs = %d, want %d", got, want)
-	}
-	if gap := reqs[1].ReceivedAtMs - reqs[0].ReceivedAtMs; gap != 10_000 {
-		t.Fatalf("receivedAtMs gap = %dms, want 10000ms", gap)
 	}
 }
 

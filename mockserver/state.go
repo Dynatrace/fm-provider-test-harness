@@ -2,7 +2,6 @@ package main
 
 import (
 	"sync"
-	"time"
 )
 
 // cdnResponse is a single programmed CDN response.
@@ -61,17 +60,12 @@ type state struct {
 
 	// Connected SSE subscribers. Each is a buffered channel of pre-formatted "data:" payloads.
 	sseClients map[chan string]struct{}
-
-	// now stamps cdnRequest.ReceivedAtMs. Overridable so tests can assert on cadence without
-	// depending on wall-clock timing.
-	now func() time.Time
 }
 
 func newState() *state {
 	return &state{
 		repeatLast: true,
 		sseClients: make(map[chan string]struct{}),
-		now:        time.Now,
 	}
 }
 

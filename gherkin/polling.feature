@@ -1,5 +1,5 @@
 Feature: Poll cadence and overlapping polls
-  As a consumer of the Dynatrace OpenFeature provider (Java / Go / Python)
+  As a consumer of the Dynatrace OpenFeature provider
   I want the provider to keep polling on a fixed cadence even when a fetch runs long
   So that a slow or unresponsive CDN is detected rather than hidden.
 

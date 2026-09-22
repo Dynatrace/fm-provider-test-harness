@@ -173,29 +173,33 @@ Feature: Provider startup and configuration fetching
     When polling triggers a configuration refetch
     Then that poll tick issued 1 CDN request
 
+  # Retry-After shorter than the poll interval is the discriminating case: the window expires
+  # mid-interval, and the provider must wait for the next cadence-anchored tick rather than
+  # fetching the moment the window clears (providers.md §2.3).
   @polling
   @rate-limit
-  Scenario: Polling resumes at the first tick after the Retry-After window expires
+  Scenario: A 429 skips to the next poll tick rather than fetching when the window expires
     Given an initialized, READY provider serving the "flags-v1" flag configuration
-    And the CDN responds with status 429 and Retry-After 30 seconds
+    And the CDN responds with status 429 and Retry-After 2 seconds
     When polling triggers a configuration refetch
     And the Retry-After window expires
-    And 1 poll interval elapses
+    Then the CDN receives no request when the window expires
+    When the next poll tick arrives
     Then the CDN has received 1 further request
     And the provider state is "READY"
 
-  # 401/403 are deliberately not fatal (providers.md §4). This deviates from base OFREP, so it is
-  # the rule a provider is most likely to get wrong by following the SDK default.
+  # 401/403 are deliberately not fatal (providers.md §4): the provider keeps polling so it recovers
+  # when the key is fixed or the failure turns out to be transient. This deviates from base OFREP,
+  # so it is the rule a provider is most likely to get wrong by following the SDK default.
   @polling
   @auth
-  Scenario: A 403 keeps the provider retrying rather than disabling it
+  Scenario: A 403 keeps the provider polling rather than disabling it
     Given an initialized, READY provider serving the "flags-v1" flag configuration
     And the CDN responds with status 403
     When polling triggers a configuration refetch
-    Then the provider state is not "FATAL"
-    And flag "flagA" continues to evaluate to true
-    When 1 poll interval elapses
-    Then the CDN has received 1 further request
+    Then flag "flagA" continues to evaluate to true
+    When 2 poll intervals elapse
+    Then the CDN has received 2 further requests
 
   @polling
   @retry

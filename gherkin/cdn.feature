@@ -40,6 +40,29 @@ Feature: Provider startup and configuration fetching
     Then initialization fails
     And the provider state is "ERROR"
 
+  # The two-attempt cap applies to the initial fetch too (providers.md §2.4), so a failing
+  # initialization gives up in seconds instead of retrying for half a minute.
+  @startup
+  @initial-fetch
+  @retry
+  Scenario: A failing initialization gives up after one retry
+    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
+    And the CDN responds with status 500
+    When the provider is initialized
+    Then initialization fails
+    And the CDN received 2 requests
+
+  # The polling timer starts only after the initial fetch completes (providers.md §3.1), so a slow
+  # initialization does not leave a tick queued behind it.
+  @startup
+  @initial-fetch
+  @polling
+  Scenario: The polling timer starts only after initialization completes
+    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
+    And the CDN serves the "flags-v1" flag configuration slowly but within the request timeout
+    When the provider is initialized
+    Then the first poll tick is one poll interval after initialization completed
+
   @startup
   @initial-fetch
   @failure
@@ -142,6 +165,19 @@ Feature: Provider startup and configuration fetching
     And 1 poll interval elapses
     Then the CDN has received 1 further request
     And the provider state is "READY"
+
+  # 401/403 are deliberately not fatal (providers.md §4). This deviates from base OFREP, so it is
+  # the rule a provider is most likely to get wrong by following the SDK default.
+  @polling
+  @auth
+  Scenario: A 403 keeps the provider retrying rather than disabling it
+    Given an initialized, READY provider serving the "flags-v1" flag configuration
+    And the CDN responds with status 403
+    When polling triggers a configuration refetch
+    Then the provider state is not "FATAL"
+    And flag "flagA" continues to evaluate to true
+    When 1 poll interval elapses
+    Then the CDN has received 1 further request
 
   @polling
   @retry

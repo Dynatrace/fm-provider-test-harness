@@ -4,6 +4,9 @@ Feature: Provider startup and configuration fetching
   keep it fresh via conditional requests
   So that evaluations are served from a correct, up-to-date configuration.
 
+  # Request counts are always relative. "further" counts CDN requests since the
+  # "an initialized, READY provider ..." arrangement completed, or since the scenario started when
+  # a scenario has no such step.
   Background:
     Given a mock server is running
 
@@ -50,7 +53,7 @@ Feature: Provider startup and configuration fetching
     And the CDN responds with status 500
     When the provider is initialized
     Then initialization fails
-    And the CDN received 2 requests
+    And the CDN has received 2 further requests
 
   # The polling timer starts only after the initial fetch completes (providers.md §3.1), so a slow
   # initialization does not leave a tick queued behind it.
@@ -59,7 +62,8 @@ Feature: Provider startup and configuration fetching
   @polling
   Scenario: The polling timer starts only after initialization completes
     Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
-    And the CDN serves the "flags-v1" flag configuration slowly but within the request timeout
+    And the CDN serves the "flags-v1" flag configuration
+    And the CDN responds slowly but within the request timeout
     When the provider is initialized
     Then the first poll tick is one poll interval after initialization completed
 
@@ -76,8 +80,8 @@ Feature: Provider startup and configuration fetching
     When the provider is initialized
     Then initialization fails
     And the provider state is "ERROR"
-    When the CDN recovers and serves the "flags-v1" flag configuration
-    And 1 poll interval elapses at the SSE-disconnected cadence
+    When the CDN serves the "flags-v1" flag configuration
+    And 1 poll interval elapses
     Then the provider state is "READY"
     And flag "flagA" evaluates to true
 
@@ -118,7 +122,7 @@ Feature: Provider startup and configuration fetching
     When polling triggers a configuration refetch
     Then the provider state is "READY"
     And flag "flagA" continues to evaluate to true
-    And the CDN received 2 requests
+    And the CDN has received 1 further request
 
   @polling
   @revalidation
@@ -161,7 +165,8 @@ Feature: Provider startup and configuration fetching
     When polling triggers a configuration refetch
     Then the provider state is "READY"
     And flag "flagA" continues to evaluate to true
-    And the CDN receives no further requests while rate-limited
+    When 1 poll interval elapses
+    Then the CDN has received 0 further requests
 
   # A 429 ends the fetch; it is never retried inside the same fetch (providers.md §2.3), which is
   # what keeps the Retry-After delay out of the fetch-duration bound in section 2.1.
@@ -171,7 +176,7 @@ Feature: Provider startup and configuration fetching
     Given an initialized, READY provider serving the "flags-v1" flag configuration
     And the CDN responds with status 429 and Retry-After 30 seconds
     When polling triggers a configuration refetch
-    Then that poll tick issued 1 CDN request
+    Then the CDN has received 1 further request
 
   # Retry-After shorter than the poll interval is the discriminating case: the window expires
   # mid-interval, and the provider must wait for the next cadence-anchored tick rather than
@@ -183,7 +188,7 @@ Feature: Provider startup and configuration fetching
     And the CDN responds with status 429 and Retry-After 2 seconds
     When polling triggers a configuration refetch
     And the Retry-After window expires
-    Then the CDN receives no request when the window expires
+    Then the CDN has received 0 further requests
     When the next poll tick arrives
     Then the CDN has received 1 further request
     And the provider state is "READY"
@@ -218,8 +223,7 @@ Feature: Provider startup and configuration fetching
     Given an initialized, READY provider serving the "flags-v1" flag configuration
     And the CDN responds with status 500
     When polling triggers a configuration refetch
-    Then that poll tick issued 2 CDN requests
-    And the CDN receives no further requests before the next poll tick
+    Then the CDN has received 2 further requests
     And flag "flagA" continues to evaluate to true
 
   # ---------------------------------------------------------------------------
@@ -230,7 +234,7 @@ Feature: Provider startup and configuration fetching
     Given an initialized, READY provider serving the "flags-v1" flag configuration
     When 3 poll intervals elapse
     Then the CDN has received 3 further requests
-    And consecutive CDN requests are one poll interval apart
+    And consecutive poll ticks are one poll interval apart
 
   # A fetch is bounded to under one poll interval (providers.md §2.1), so a CDN that never answers
   # is abandoned at the request timeout rather than stretching the cadence behind it. A timed-out
@@ -241,8 +245,8 @@ Feature: Provider startup and configuration fetching
     Given an initialized, READY provider serving the "flags-v1" flag configuration
     And the CDN responds slower than the request timeout
     When 3 poll intervals elapse
-    Then each poll tick issues 2 CDN requests
-    And the first request of consecutive poll ticks is one poll interval apart
+    Then the CDN has received 6 further requests
+    And consecutive poll ticks are one poll interval apart
 
   # At most one CDN fetch is in flight at a time (providers.md §2.1.1). A tick that finds one
   # running is skipped: it issues no request, and it must not be reported as an outcome.
@@ -252,7 +256,8 @@ Feature: Provider startup and configuration fetching
     Given an initialized, READY provider serving the "flags-v1" flag configuration
     And the CDN responds slower than the request timeout
     When an SSE re-fetch is triggered shortly before the next poll tick
-    Then the CDN receives no request for that poll tick
+    And the next poll tick arrives
+    Then the CDN has received 0 further requests
     And the provider state is "READY"
 
   # ---------------------------------------------------------------------------

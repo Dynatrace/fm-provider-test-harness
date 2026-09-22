@@ -132,6 +132,38 @@ Feature: Provider startup and configuration fetching
     And flag "flagA" eventually evaluates to false
 
   # ---------------------------------------------------------------------------
+  # Poll cadence and single-flight fetching
+  # ---------------------------------------------------------------------------
+  @polling
+  Scenario: The provider re-fetches on the poll interval
+    Given an initialized, READY provider serving the "flags-v1" flag configuration
+    When 3 poll intervals elapse
+    Then the CDN has received 3 further requests
+    And consecutive CDN requests are one poll interval apart
+
+  # A fetch is bounded to under one poll interval (providers.md §2.1), so a CDN that never answers
+  # is abandoned at the request timeout rather than stretching the cadence behind it.
+  @polling
+  @timeout
+  Scenario: A CDN that responds slower than the request timeout does not stretch the cadence
+    Given an initialized, READY provider serving the "flags-v1" flag configuration
+    And the CDN is programmed to respond slower than the request timeout
+    When 3 poll intervals elapse
+    Then the CDN has received 3 further requests
+    And consecutive CDN requests are one poll interval apart
+
+  # At most one CDN fetch is in flight at a time (providers.md §2.1.1). A tick that finds one
+  # running is skipped: it issues no request, and it must not be reported as an outcome.
+  @polling
+  @single-flight
+  Scenario: A poll tick that finds a fetch in flight is skipped
+    Given an initialized, READY provider serving the "flags-v1" flag configuration
+    And the CDN is programmed to respond slower than the request timeout
+    When an SSE re-fetch is triggered shortly before the next poll tick
+    Then the CDN receives no request for that poll tick
+    And the provider state is "READY"
+
+  # ---------------------------------------------------------------------------
   # Flag evaluation
   # ---------------------------------------------------------------------------
   @evaluation

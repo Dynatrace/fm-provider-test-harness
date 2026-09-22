@@ -147,7 +147,7 @@ Feature: Provider startup and configuration fetching
   @timeout
   Scenario: A CDN that responds slower than the request timeout does not stretch the cadence
     Given an initialized, READY provider serving the "flags-v1" flag configuration
-    And the CDN is programmed to respond slower than the request timeout
+    And the CDN responds slower than the request timeout
     When 3 poll intervals elapse
     Then the CDN has received 3 further requests
     And consecutive CDN requests are one poll interval apart
@@ -158,7 +158,7 @@ Feature: Provider startup and configuration fetching
   @single-flight
   Scenario: A poll tick that finds a fetch in flight is skipped
     Given an initialized, READY provider serving the "flags-v1" flag configuration
-    And the CDN is programmed to respond slower than the request timeout
+    And the CDN responds slower than the request timeout
     When an SSE re-fetch is triggered shortly before the next poll tick
     Then the CDN receives no request for that poll tick
     And the provider state is "READY"

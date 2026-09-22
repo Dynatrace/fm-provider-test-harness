@@ -122,6 +122,27 @@ Feature: Provider startup and configuration fetching
     And flag "flagA" continues to evaluate to true
     And the CDN receives no further requests while rate-limited
 
+  # A 429 ends the fetch; it is never retried inside the same fetch (providers.md §2.3), which is
+  # what keeps the Retry-After delay out of the fetch-duration bound in section 2.1.
+  @polling
+  @rate-limit
+  Scenario: A 429 is not retried within the same fetch
+    Given an initialized, READY provider serving the "flags-v1" flag configuration
+    And the CDN responds with status 429 and Retry-After 30 seconds
+    When polling triggers a configuration refetch
+    Then that poll tick issued 1 CDN request
+
+  @polling
+  @rate-limit
+  Scenario: Polling resumes at the first tick after the Retry-After window expires
+    Given an initialized, READY provider serving the "flags-v1" flag configuration
+    And the CDN responds with status 429 and Retry-After 30 seconds
+    When polling triggers a configuration refetch
+    And the Retry-After window expires
+    And 1 poll interval elapses
+    Then the CDN has received 1 further request
+    And the provider state is "READY"
+
   @polling
   @retry
   Scenario: A transient 5xx is retried with backoff and recovers on 2xx
@@ -130,6 +151,18 @@ Feature: Provider startup and configuration fetching
     When polling triggers a configuration refetch
     Then the provider state is "READY"
     And flag "flagA" eventually evaluates to false
+
+  # A fetch is at most two attempts (providers.md §2.4). The bound is what keeps a fetch shorter
+  # than the poll interval, so the absence of a third attempt is the assertion that matters.
+  @polling
+  @retry
+  Scenario: A fetch gives up after one retry rather than looping
+    Given an initialized, READY provider serving the "flags-v1" flag configuration
+    And the CDN responds with status 500
+    When polling triggers a configuration refetch
+    Then that poll tick issued 2 CDN requests
+    And the CDN receives no further requests before the next poll tick
+    And flag "flagA" continues to evaluate to true
 
   # ---------------------------------------------------------------------------
   # Poll cadence and single-flight fetching
@@ -142,15 +175,16 @@ Feature: Provider startup and configuration fetching
     And consecutive CDN requests are one poll interval apart
 
   # A fetch is bounded to under one poll interval (providers.md §2.1), so a CDN that never answers
-  # is abandoned at the request timeout rather than stretching the cadence behind it.
+  # is abandoned at the request timeout rather than stretching the cadence behind it. A timed-out
+  # attempt is retried once within the same tick, so each tick issues two requests.
   @polling
   @timeout
   Scenario: A CDN that responds slower than the request timeout does not stretch the cadence
     Given an initialized, READY provider serving the "flags-v1" flag configuration
     And the CDN responds slower than the request timeout
     When 3 poll intervals elapse
-    Then the CDN has received 3 further requests
-    And consecutive CDN requests are one poll interval apart
+    Then each poll tick issues 2 CDN requests
+    And the first request of consecutive poll ticks is one poll interval apart
 
   # At most one CDN fetch is in flight at a time (providers.md §2.1.1). A tick that finds one
   # running is skipped: it issues no request, and it must not be reported as an outcome.

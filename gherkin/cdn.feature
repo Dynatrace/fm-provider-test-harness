@@ -63,6 +63,24 @@ Feature: Provider startup and configuration fetching
     When the provider is initialized
     Then the first poll tick is one poll interval after initialization completed
 
+  # The timer starts after a failed initialization too (providers.md §3.1). A failed init has no
+  # config and therefore no SSE URL, so the disconnected cadence applies and the first tick is what
+  # recovers the provider.
+  @startup
+  @initial-fetch
+  @polling
+  @failure
+  Scenario: A failed initialization still starts the polling timer and recovers
+    Given the SDK key "dt01.server_us_abcdef1234.de848e97a9cc4cc78aae568e65f49a9d_a1b2c3d4e5"
+    And the CDN responds with status 500
+    When the provider is initialized
+    Then initialization fails
+    And the provider state is "ERROR"
+    When the CDN recovers and serves the "flags-v1" flag configuration
+    And 1 poll interval elapses at the SSE-disconnected cadence
+    Then the provider state is "READY"
+    And flag "flagA" evaluates to true
+
   @startup
   @initial-fetch
   @failure

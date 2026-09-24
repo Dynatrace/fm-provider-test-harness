@@ -2,23 +2,34 @@ package main
 
 import (
 	"sync"
+	"time"
 )
 
 // cdnResponse is a single programmed CDN response.
 //
 // Body is a pointer so an explicitly-empty body ("body": "") can be distinguished from an absent
 // one (field omitted) — the former is served as a zero-length body, the latter as no body at all.
+//
+// DelayMs holds the response back before any status or body is written, so a scenario can make a
+// fetch outlive the provider's poll interval. The request is still recorded at arrival time, so
+// cadence assertions see the request when it was initiated, not when it was answered.
 type cdnResponse struct {
 	Status  int               `json:"status"`
 	Body    *string           `json:"body,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
+	DelayMs int               `json:"delayMs,omitempty"`
 }
 
 // cdnRequest is a CDN request the backend observed since the last reset.
+//
+// ReceivedAtMs is Unix epoch milliseconds at arrival, so a suite can assert on poll cadence
+// directly (providers.md §2.1 anchors the interval to request initiation) instead of inferring it
+// from request counts. It is set by nextResponse, not by the caller.
 type cdnRequest struct {
-	Method  string            `json:"method"`
-	Path    string            `json:"path"`
-	Headers map[string]string `json:"headers"`
+	Method       string            `json:"method"`
+	Path         string            `json:"path"`
+	Headers      map[string]string `json:"headers"`
+	ReceivedAtMs int64             `json:"receivedAtMs"`
 }
 
 // metricsRequest is a metrics-ingest request the backend observed since the last reset.
@@ -81,10 +92,15 @@ func (s *state) programResponses(responses []cdnResponse, repeatLast bool) {
 
 // nextResponse records the request and returns the CDN response to serve, or ok=false when the
 // program is exhausted and repeatLast is disabled.
+//
+// ReceivedAtMs is stamped here rather than by the caller so it is taken under the same lock as the
+// append. Overlapping CDN handlers would otherwise be able to stamp in one order and append in the
+// other, leaving the log's arrival order disagreeing with its timestamps.
 func (s *state) nextResponse(req cdnRequest) (cdnResponse, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	req.ReceivedAtMs = time.Now().UnixMilli()
 	s.cdnRequests = append(s.cdnRequests, req)
 
 	if s.cursor < len(s.cdnResponses) {

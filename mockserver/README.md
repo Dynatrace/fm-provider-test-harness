@@ -63,7 +63,8 @@ docker pull "ghcr.io/dynatrace/fm-provider-mock-server:v$(cat version.txt)"
 {
   "responses": [
     { "status": 200, "body": "{\"flags\":{}}", "headers": { "Last-Modified": "Tue, 02 Jan 2024 00:00:00 GMT" } },
-    { "status": 304, "headers": {} }
+    { "status": 304, "headers": {} },
+    { "status": 200, "body": "{\"flags\":{}}", "delayMs": 30000 }
   ],
   "repeatLast": true
 }
@@ -77,6 +78,17 @@ several entries in one go.
 - `body` — optional. Omit for *no* body; use `""` for an explicitly empty body.
 - `headers` — returned verbatim (e.g. `ETag`, `Last-Modified`, `Retry-After`).
 - `status` — defaults to `200` if omitted.
+- `delayMs` — optional. Holds the response back this many milliseconds **before** writing the status
+  or body. Defaults to `0` (immediate); a negative value is rejected with `400`.
+
+`delayMs` exists so a scenario can make a fetch outlive the provider's poll interval or its staleness
+grace period, which is the only way to exercise overlapping polls (`providers.md` §2.1, poll cadence
+anchoring). Two properties matter and are covered by unit tests:
+
+- The request is **recorded at arrival**, before the delay, so cadence assertions see requests when
+  the provider initiated them rather than when the backend answered.
+- The delay is **abandoned on client disconnect**, so a provider that aborts its fetch frees the
+  handler goroutine instead of leaking one per scenario.
 
 Re-programming mid-scenario rewinds the cursor but **preserves** recorded requests, so a step can
 swap the response and still count fetches across the change. Use `/reset` to clear everything.
@@ -87,13 +99,18 @@ swap the response and still count fetches across the change. Use `/reset` to cle
 {
   "requests": [
     { "method": "GET", "path": "/server/dt01.server_us_....json",
-      "headers": { "if-none-match": "\"v1\"", "if-modified-since": "Tue, 02 Jan 2024 00:00:00 GMT" } }
+      "headers": { "if-none-match": "\"v1\"", "if-modified-since": "Tue, 02 Jan 2024 00:00:00 GMT" },
+      "receivedAtMs": 1704164645000 }
   ]
 }
 ```
 
 Requests are returned in arrival order; **header names are lower-cased**. Used to assert the initial
 fetch is unconditional and that it targets `/server/{key}.json`.
+
+- `receivedAtMs` — Unix epoch milliseconds at arrival. Lets a suite assert on **poll cadence**
+  directly (the gap between consecutive requests) instead of inferring it from request counts. The
+  stamp is taken when the request arrives, so it is unaffected by any `delayMs` on the response.
 
 ### `GET /__control__/metrics/requests`
 

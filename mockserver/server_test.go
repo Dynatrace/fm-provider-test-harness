@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // do executes a request against the server handler using an in-memory recorder (no sockets).
@@ -180,6 +182,81 @@ func TestProgramPreservesRecordedRequests(t *testing.T) {
 
 	if reqs := getRequests(t, h); len(reqs) != 1 {
 		t.Fatalf("after re-program recorded %d requests, want 1 preserved", len(reqs))
+	}
+}
+
+// --- response delay + arrival timestamps (providers.md §2.1 poll cadence anchoring) ---
+
+func TestDelayedResponseIsHeldBackButRecordedAtArrival(t *testing.T) {
+	// Cadence assertions count requests as they are initiated, so a slow response must reach the
+	// request log immediately and only the write is held back.
+	h := NewServer().Handler()
+	program(t, h, `{"responses":[{"status":200,"body":"x","delayMs":200}]}`)
+
+	start := time.Now()
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- do(t, h, "GET", "/server/x.json", "") }()
+
+	var reqs []cdnRequest
+	for deadline := time.Now().Add(2 * time.Second); ; {
+		if reqs = getRequests(t, h); len(reqs) == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("request was not recorded while the response was still in flight")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	// The request must be visible *before* the response completes; without this the test would
+	// still pass if recording moved to after the delay.
+	select {
+	case <-done:
+		t.Fatal("response completed before the request was observed; recording is not at arrival")
+	default:
+	}
+	if reqs[0].ReceivedAtMs < start.UnixMilli() {
+		t.Fatalf("receivedAtMs = %d, want >= %d", reqs[0].ReceivedAtMs, start.UnixMilli())
+	}
+
+	rec := <-done
+	if rec.Code != http.StatusOK || rec.Body.String() != "x" {
+		t.Fatalf("delayed fetch = %d %q, want 200 %q", rec.Code, rec.Body.String(), "x")
+	}
+	if elapsed := time.Since(start); elapsed < 200*time.Millisecond {
+		t.Fatalf("delayed fetch returned after %v, want at least 200ms", elapsed)
+	}
+}
+
+func TestDelayIsAbandonedOnClientDisconnect(t *testing.T) {
+	// A provider that aborts its fetch must free the handler goroutine rather than leaking one per
+	// scenario.
+	h := NewServer().Handler()
+	program(t, h, `{"responses":[{"status":200,"body":"x","delayMs":10000}]}`)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	r := httptest.NewRequest("GET", "/server/x.json", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() { defer close(done); h.ServeHTTP(rec, r) }()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler did not return after the client disconnected")
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("abandoned handler wrote %q, want nothing", rec.Body.String())
+	}
+}
+
+func TestNegativeDelayMsIsRejected(t *testing.T) {
+	h := NewServer().Handler()
+	rec := do(t, h, "PUT", "/__control__/cdn/responses", `{"responses":[{"status":200,"delayMs":-1}]}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("negative delayMs = %d, want 400", rec.Code)
 	}
 }
 

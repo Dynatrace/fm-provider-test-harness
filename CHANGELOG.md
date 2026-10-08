@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.1.0...v1.2.0) (2026-10-08)
+
+
+### ✨ New Features
+
+* **gherkin:** sse test case spec (AI-724) ([#6](https://github.com/Dynatrace/fm-provider-test-harness/issues/6)) ([4b9c98f](https://github.com/Dynatrace/fm-provider-test-harness/commit/4b9c98f42e040e9e2d23d17e15d3639797000bdb))
+
 ## [1.1.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.0.1...v1.1.0) (2026-09-24)
 
 

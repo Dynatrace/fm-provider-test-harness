@@ -8,7 +8,6 @@ Feature: SSE change notifications
 
   Background:
     Given a mock server with SSE enabled is running
-    And an environment variable TEST_PROVIDER_TIMES_FACTOR set to 0.1
 
   # ---------------------------------------------------------------------------
   # Stream discovery from CDN config
@@ -218,7 +217,6 @@ Feature: SSE change notifications
 
   @lifecycle
   @disconnect
-  @long-polling
   Scenario: A poll failure while SSE is healthy stays READY
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
     And the CDN responds with status 500

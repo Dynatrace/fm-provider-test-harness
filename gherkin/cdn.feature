@@ -1,5 +1,5 @@
 Feature: Provider startup and configuration fetching
-  As a consumer of the Dynatrace OpenFeature provider (Java / Go / Python)
+  As a consumer of the Dynatrace OpenFeature provider
   I want the provider to validate its key, fetch flag config from the CDN, and
   keep it fresh via conditional requests
   So that evaluations are served from a correct, up-to-date configuration.

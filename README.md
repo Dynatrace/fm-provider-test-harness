@@ -8,6 +8,9 @@ Contains:
 - **[`gherkin/`](gherkin)** - a language-agnostic Gherkin spec describing the behavior every provider
   must implement (startup, key validation, CDN config fetching, conditional revalidation, rate
   limiting, poll cadence and single-flight fetching, basic evaluation).
+- **[`gherkin/timings.json`](gherkin/timings.json)** - provider timings (in milliseconds) shortened from
+  their production defaults so scenarios don't wait them out. Providers override these under test, so
+  every language runs the scenarios with the same values; all other timings stay at production defaults.
 - **[`mockserver/`](mockserver)** - a dependency-free Go service that emulates the backends a provider
   communicates with (CDN config endpoint, metrics ingest, SSE stream) plus an HTTP control plane to script
   responses and assert on what the provider sent. See the [mock server README](mockserver/README.md).

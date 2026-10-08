@@ -6,6 +6,7 @@ Feature: SSE change notifications
   the stream drops
   So that flag changes are picked up promptly without relying on aggressive polling.
 
+  # adjusted timings can be found in timings.json; others are production defaults.
   Background:
     Given a mock server with SSE enabled is running
 

@@ -1,6 +1,6 @@
 @sse
 Feature: SSE change notifications
-  As a consumer of the Dynatrace OpenFeature provider (Java / Go / Python)
+  As a consumer of the Dynatrace OpenFeature provider
   I want the provider to open an SSE stream advertised by the CDN config and
   react to change notifications by re-fetching, while degrading gracefully when
   the stream drops
@@ -138,7 +138,7 @@ Feature: SSE change notifications
   @ignored
   Scenario Outline: Messages that are not actionable trigger no re-fetch
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the server emits an SSE message "<payload>"
+    When the server emits an SSE message '<payload>'
     Then the provider state is "READY"
     # 1st fetch in initialize, 2nd fetch on successful sse connection, no 3rd request for invalid sse messages
     And the CDN received 2 requests
@@ -155,7 +155,7 @@ Feature: SSE change notifications
   Scenario Outline: Both the Ably envelope and flat message shapes are accepted
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
     And the CDN responds with status 200 and the "flags-v2-sse" flag configuration with "Last-Modified" header "Tue, 02 Jan 2024 00:00:00 GMT"
-    When the server emits an SSE message "<payload>"
+    When the server emits an SSE message '<payload>'
     Then the provider state is "READY"
     # 1st fetch in initialize, 2nd fetch on successful sse connection, 3rd on sse message
     And the CDN received 3 requests
@@ -208,10 +208,10 @@ Feature: SSE change notifications
   @grace
   Scenario: A disconnect that never recovers transitions STALE to ERROR after the grace period
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
+    And the CDN responds with status 500
     When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
     Then the provider state is "STALE"
     And a PROVIDER_STALE event is emitted
-    And the CDN responds with status 500
     When the grace period expires
     Then the provider state is "ERROR"
     And a PROVIDER_ERROR event is emitted

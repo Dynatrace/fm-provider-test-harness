@@ -1,7 +1,7 @@
 # fm-provider-test-harness
 
 Shared acceptance-test harness for the Dynatrace Feature Management [OpenFeature](https://openfeature.dev)
-providers (Java, Go, Python).
+providers.
 
 Contains:
 

@@ -147,7 +147,7 @@ func (s *state) recordedMetricsRequests() []metricsRequest {
 }
 
 // addSSEClient registers a subscriber and returns a channel that is closed when the client should
-// disconnect (either via disconnectSSEClients or normal teardown from removeSSEClient).
+// disconnect via disconnectSSEClients.
 func (s *state) addSSEClient(ch chan string) chan struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -205,7 +205,7 @@ func (s *state) disconnectSSEClients(o sseOutage) {
 }
 
 // sseAvailable reports whether new SSE connections are currently accepted. It returns false during
-// an outage opened by disconnectSSEClients — indefinitely, or until the outage window elapses.
+// an outage opened by disconnectSSEClients; indefinitely, or until the outage window elapses.
 func (s *state) sseAvailable() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

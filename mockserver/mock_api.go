@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // This file holds the provider-facing (mocked) endpoints: the CDN config endpoint, the metrics
@@ -18,6 +19,17 @@ func (s *Server) handleCDN(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		http.Error(w, "no CDN response programmed", http.StatusInternalServerError)
 		return
+	}
+
+	// Hold the response back before writing anything, so the provider sees a genuinely slow CDN.
+	// Abandoning on request-context cancellation means a provider that aborts its fetch frees the
+	// handler goroutine instead of leaking one per scenario.
+	if resp.DelayMs > 0 {
+		select {
+		case <-time.After(time.Duration(resp.DelayMs) * time.Millisecond):
+		case <-r.Context().Done():
+			return
+		}
 	}
 
 	for k, v := range resp.Headers {

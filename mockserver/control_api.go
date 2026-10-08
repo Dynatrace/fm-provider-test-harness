@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -29,6 +30,12 @@ func (s *Server) handleProgramCDN(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+	for i, resp := range body.Responses {
+		if resp.DelayMs < 0 {
+			http.Error(w, "responses["+strconv.Itoa(i)+"].delayMs must not be negative", http.StatusBadRequest)
+			return
+		}
 	}
 	repeatLast := true
 	if body.RepeatLast != nil {

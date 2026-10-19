@@ -80,9 +80,9 @@ Feature: SSE change notifications
 
   @lifecycle
   @reconnect
-  Scenario: A brief reconnect blip does not leave READY and pulls a catch-up fetch
+  Scenario: A reconnect pulls a catch-up fetch
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops for 2 seconds and reconnects within the DISCONNECT_DEBOUNCE_TIME_WINDOW
+    When the SSE stream drops for 2 seconds and reconnects
     Then the provider state is "READY"
     # 1st fetch in initialize, 2nd fetch on successful sse connection, 3rd on reconnection
     And the CDN received 3 requests
@@ -167,62 +167,42 @@ Feature: SSE change notifications
       | { "data": "{\"type\":\"refetchConfig\",\"lastModified\":1704153600}" }    | Ably envelope |
 
   # ---------------------------------------------------------------------------
-  # Connection lifecycle: sustained disconnect, staleness, grace, recovery
+  # Connection lifecycle: disconnect and staleness
+  #
+  # hint:
+  # SSE only prompts fetches, so its connection state never changes the provider
+  # state; it only selects the poll cadence. STALE/ERROR follow CDN fetch outcomes.
   # ---------------------------------------------------------------------------
   @lifecycle
   @disconnect
   @polling
-  Scenario: A sustained disconnect switches to the aggressive poll cadence and goes STALE
+  Scenario: A sustained disconnect switches to the aggressive poll cadence and stays READY
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
-    Then the provider state is "STALE"
-    And a PROVIDER_STALE event is emitted
-    And the active poll interval is the SSE_DISCONNECTED_POLL_INTERVAL
+    When the SSE stream drops and stays down
+    Then the active poll interval is the SSE_DISCONNECTED_POLL_INTERVAL
+    And the provider state is "READY"
 
   @lifecycle
-  @disconnect
-  @recovery
-  Scenario: A successful fetch while STALE recovers to READY
-    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
-    Then the provider state is "STALE"
-    And a PROVIDER_STALE event is emitted
-    When polling triggers a configuration refetch after the SSE_DISCONNECTED_POLL_INTERVAL
-    Then the provider state is "READY"
-    And a PROVIDER_READY event is emitted
-
-  @lifecycle
-  @disconnect
-  @recovery
-  Scenario: Reconnecting the SSE stream while STALE recovers to READY
-    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
-    Then the provider state is "STALE"
-    And a PROVIDER_STALE event is emitted
-    When the SSE stream reconnects
-    Then the provider state is "READY"
-    And a PROVIDER_READY event is emitted
-
-  @lifecycle
-  @disconnect
-  @grace
-  Scenario: A disconnect that never recovers transitions STALE to ERROR after the grace period
+  @staleness
+  Scenario: A failed fetch while SSE is connected goes STALE
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
     And the CDN responds with status 500
-    When the SSE stream drops and stays down past the DISCONNECT_DEBOUNCE_TIME_WINDOW
+    When the server emits an SSE message '{ "type": "refetchConfig" }'
+    Then the provider state is "STALE"
+    And a PROVIDER_STALE event is emitted
+
+  @lifecycle
+  @staleness
+  @grace
+  Scenario: Fetches that keep failing while SSE is connected transition STALE to ERROR after the grace period
+    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
+    And the CDN responds with status 500
+    When the server emits an SSE message '{ "type": "refetchConfig" }'
     Then the provider state is "STALE"
     And a PROVIDER_STALE event is emitted
     When the grace period expires
     Then the provider state is "ERROR"
     And a PROVIDER_ERROR event is emitted
-
-  @lifecycle
-  @disconnect
-  Scenario: A poll failure while SSE is healthy stays READY
-    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    And the CDN responds with status 500
-    When polling triggers a configuration refetch after the SSE_CONNECTED_POLL_INTERVAL
-    Then the provider state is "READY"
 
   # ---------------------------------------------------------------------------
   # Shutdown

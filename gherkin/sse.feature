@@ -184,7 +184,6 @@ Feature: SSE change notifications
     And the provider state is "READY"
 
   @lifecycle
-  @staleness
   Scenario: A failed fetch while SSE is connected goes STALE
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
     And the CDN responds with status 500
@@ -193,7 +192,6 @@ Feature: SSE change notifications
     And a PROVIDER_STALE event is emitted
 
   @lifecycle
-  @staleness
   @grace
   Scenario: Fetches that keep failing while SSE is connected transition STALE to ERROR after the grace period
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration

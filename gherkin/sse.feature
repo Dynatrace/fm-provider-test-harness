@@ -180,6 +180,7 @@ Feature: SSE change notifications
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
     When the SSE stream drops and stays down
     Then the active poll interval is the SSE_DISCONNECTED_POLL_INTERVAL
+    And no PROVIDER_STALE event is emitted
     And the provider state is "READY"
 
   @lifecycle

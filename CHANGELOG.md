@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.2.0...v1.3.0) (2026-10-20)
+
+
+### ✨ New Features
+
+* SSE state no longer drives provider staleness ([#17](https://github.com/Dynatrace/fm-provider-test-harness/issues/17)) ([db04021](https://github.com/Dynatrace/fm-provider-test-harness/commit/db04021864fb9d15a7e5fc800d97b4ae73dccd80))
+
 ## [1.2.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.1.0...v1.2.0) (2026-10-08)
 
 

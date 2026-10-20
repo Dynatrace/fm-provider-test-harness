@@ -184,22 +184,14 @@ Feature: SSE change notifications
     And the provider state is "READY"
 
   @lifecycle
-  Scenario: A failed fetch while SSE is connected goes STALE
-    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
-    And the CDN responds with status 500
-    When the server emits an SSE message '{ "type": "refetchConfig" }'
-    Then the provider state is "STALE"
-    And a PROVIDER_STALE event is emitted
-
-  @lifecycle
   @grace
-  Scenario: Fetches that keep failing while SSE is connected transition STALE to ERROR after the grace period
+  Scenario: Fetches that keep failing while SSE is connected transition STALE to ERROR after the GRACE_PERIOD
     Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
     And the CDN responds with status 500
     When the server emits an SSE message '{ "type": "refetchConfig" }'
     Then the provider state is "STALE"
     And a PROVIDER_STALE event is emitted
-    When the grace period expires
+    When the GRACE_PERIOD expires
     Then the provider state is "ERROR"
     And a PROVIDER_ERROR event is emitted
 

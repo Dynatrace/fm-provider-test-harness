@@ -100,11 +100,11 @@ Feature: SSE change notifications
   @refetch
   @conditional-headers
   Scenario: The SSE-triggered re-fetch is conditional
-    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration with "ETag" header "v1"
+    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration with "ETag" header ""v1""
     When the server emits an SSE message '{ "type": "refetchConfig", "lastModified": 1704153600 }'
     # 1st fetch in initialize, 2nd fetch on successful sse connection, 3rd on sse message
     Then the CDN received 3 requests
-    And the 3. CDN request has the "If-None-Match" header "v1"
+    And the 3. CDN request has the "If-None-Match" header ""v1""
 
   @message
   @refetch
@@ -122,7 +122,7 @@ Feature: SSE change notifications
   @message
   @refetch
   Scenario: A 304 to an SSE-triggered re-fetch leaves the config unchanged
-    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration with "ETag" header "v1"
+    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration with "ETag" header ""v1""
     And flag "flagA" evaluates to true
     And the CDN responds with status 304
     When the server emits an SSE message '{ "type": "refetchConfig", "lastModified": 1704153600 }'

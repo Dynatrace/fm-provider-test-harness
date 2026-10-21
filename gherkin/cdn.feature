@@ -147,12 +147,12 @@ Feature: Provider startup and configuration fetching
   @revalidation
   @conditional-headers
   Scenario: A subsequent fetch echoes the stored ETag as If-None-Match
-    Given an initialized, READY provider serving the "flags-v1" flag configuration with "ETag" header "v1"
+    Given an initialized, READY provider serving the "flags-v1" flag configuration with "ETag" header ""v1""
     And the CDN responds with status 304
     When polling triggers a configuration refetch
     Then the provider state is "READY"
     And flag "flagA" continues to evaluate to true
-    And the 2. CDN request has the "If-None-Match" header "v1"
+    And the 2. CDN request has the "If-None-Match" header ""v1""
 
   # ---------------------------------------------------------------------------
   # Rate limiting and retry

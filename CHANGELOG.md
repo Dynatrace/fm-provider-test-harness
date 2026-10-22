@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.3.0...v1.3.1) (2026-10-22)
+
+
+### 🐛 Bug Fixes
+
+* quote ETag values per RFC 9110 ([#19](https://github.com/Dynatrace/fm-provider-test-harness/issues/19)) ([43ea81e](https://github.com/Dynatrace/fm-provider-test-harness/commit/43ea81e4b08be929f4e206aeb23ffc1c3fa25e84))
+
 ## [1.3.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.2.0...v1.3.0) (2026-10-20)
 
 

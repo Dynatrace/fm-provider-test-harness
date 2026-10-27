@@ -203,9 +203,10 @@ Feature: SSE change notifications
     And the CDN responds with status 500
     When the server emits an SSE message '{ "type": "refetchConfig" }'
     Then the provider state is "STALE"
+    And the active poll interval is the SSE_DISCONNECTED_POLL_INTERVAL
     When the CDN serves the "flags-v1-sse" flag configuration
-    Then the active poll interval is the SSE_DISCONNECTED_POLL_INTERVAL
-    And the provider state is "READY"
+    And 1 poll interval elapses
+    Then the provider state is "READY"
     And the active poll interval is the SSE_CONNECTED_POLL_INTERVAL
 
   # ---------------------------------------------------------------------------

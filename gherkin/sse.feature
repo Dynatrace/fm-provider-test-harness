@@ -195,6 +195,20 @@ Feature: SSE change notifications
     Then the provider state is "ERROR"
     And a PROVIDER_ERROR event is emitted
 
+  @lifecycle
+  @grace
+  @polling
+  Scenario: A failed fetch while SSE is connected switches to the aggressive poll cadence until a fetch succeeds
+    Given an initialized, READY provider serving the "flags-v1-sse" flag configuration
+    And the CDN responds with status 500
+    When the server emits an SSE message '{ "type": "refetchConfig" }'
+    Then the provider state is "STALE"
+    And the active poll interval is the SSE_DISCONNECTED_POLL_INTERVAL
+    When the CDN serves the "flags-v1-sse" flag configuration
+    And 1 poll interval elapses
+    Then the provider state is "READY"
+    And the active poll interval is the SSE_CONNECTED_POLL_INTERVAL
+
   # ---------------------------------------------------------------------------
   # Shutdown
   # ---------------------------------------------------------------------------

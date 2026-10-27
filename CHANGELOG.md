@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.3.1...v1.4.0) (2026-10-27)
+
+
+### ✨ New Features
+
+* use fast-poll mode if fetch fails while SSE connected ([#21](https://github.com/Dynatrace/fm-provider-test-harness/issues/21)) ([8427d0a](https://github.com/Dynatrace/fm-provider-test-harness/commit/8427d0a448e4efd7df5933e41b9dba974f1b1caf))
+
 ## [1.3.1](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.3.0...v1.3.1) (2026-10-22)
 
 

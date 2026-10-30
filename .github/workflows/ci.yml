@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run format:check
+
+  # smoke-test that the mock server image builds; never pushes
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build mock server image (no push)
+        uses: docker/build-push-action@v7
+        with:
+          context: mockserver
+          file: mockserver/Dockerfile
+          push: false
+
+  # single required check for branch protection; keeps job/matrix renames out of the registry
+  ci-passed:
+    name: CI Passed
+    if: always()
+    needs: [format-check, build]
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: exit 1

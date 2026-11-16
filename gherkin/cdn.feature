@@ -154,6 +154,20 @@ Feature: Provider startup and configuration fetching
     And flag "flagA" continues to evaluate to true
     And the 2. CDN request has the "If-None-Match" header '"v1"'
 
+  # validators are committed only once a body applies, so a rejected body cannot earn a 304 on the next poll
+  @polling
+  @revalidation
+  @conditional-headers
+  Scenario: A 200 with an empty body does not replace the stored validators
+    Given an initialized, READY provider serving the "flags-v1" flag configuration with "ETag" header '"v1"'
+    And the CDN responds with status 200 and body ""
+    When polling triggers a configuration refetch
+    Then the provider state is "STALE"
+    Given the CDN responds with status 304
+    When polling triggers a configuration refetch
+    Then the provider state is "READY"
+    And the 3. CDN request has the "If-None-Match" header '"v1"'
+
   # ---------------------------------------------------------------------------
   # Rate limiting and retry
   # ---------------------------------------------------------------------------

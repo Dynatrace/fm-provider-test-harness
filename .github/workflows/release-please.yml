@@ -21,8 +21,9 @@ jobs:
     permissions:
       contents: write # create the release commit, tag and GitHub release
       pull-requests: write # create/update the release PR
+      actions: write
     steps:
-      - uses: googleapis/release-please-action@v5
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release
         with:
           config-file: .release-please-config.json
@@ -31,6 +32,14 @@ jobs:
           # release tag triggers downstream workflows. Falls back to the built-in
           # token, which works but will NOT trigger checks on the release PR.
           token: ${{ secrets.RELEASE_PLEASE_ACTION_TOKEN || secrets.GITHUB_TOKEN }}
+
+      # GITHUB_TOKEN pushes don't trigger CI (except workflow_dispatch), so start it for the release PR
+      - name: Run CI on release PR
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       release_tag_name: ${{ steps.release.outputs.tag_name }}
@@ -44,25 +53,25 @@ jobs:
       contents: read
       packages: write # push to GHCR
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.release-please.outputs.release_tag_name }}
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build and push mock server image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: mockserver
           file: mockserver/Dockerfile

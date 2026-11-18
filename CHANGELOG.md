@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.4.0...v1.4.1) (2026-11-18)
+
+
+### 🧹 Chore
+
+* fix ci dead-end if no releases ([#29](https://github.com/Dynatrace/fm-provider-test-harness/issues/29)) ([dfba28c](https://github.com/Dynatrace/fm-provider-test-harness/commit/dfba28c71a904be45c5f30d0720bcf25e2cbf637))
+
 ## [1.4.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.3.1...v1.4.0) (2026-10-27)
 
 

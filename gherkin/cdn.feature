@@ -9,6 +9,7 @@ Feature: Provider startup and configuration fetching
   # a scenario has no such step.
   Background:
     Given a mock server is running
+    And SSE is disabled by configuration
 
   # ---------------------------------------------------------------------------
   # Initial fetch outcomes

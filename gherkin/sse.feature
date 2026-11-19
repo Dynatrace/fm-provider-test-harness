@@ -8,7 +8,7 @@ Feature: SSE change notifications
 
   # adjusted timings can be found in timings.json; others are production defaults.
   Background:
-    Given a mock server with SSE enabled is running
+    Given a mock server is running
 
   # ---------------------------------------------------------------------------
   # Stream discovery from CDN config

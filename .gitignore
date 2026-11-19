@@ -2,3 +2,6 @@
 
 mockserver/mockserver.exe
 node_modules/
+
+# macOS
+.DS_Store

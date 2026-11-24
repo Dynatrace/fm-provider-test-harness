@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.4.0...v2.0.0) (2026-11-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* unify background steps ([#31](https://github.com/Dynatrace/fm-provider-test-harness/issues/31))
+
+### 🐛 Bug Fixes
+
+* unify background steps ([#31](https://github.com/Dynatrace/fm-provider-test-harness/issues/31)) ([77ea451](https://github.com/Dynatrace/fm-provider-test-harness/commit/77ea4515c5eaffacc7c80fd1d95036c35ce6a699))
+
+
+### 🧹 Chore
+
+* fix ci dead-end if no releases ([#29](https://github.com/Dynatrace/fm-provider-test-harness/issues/29)) ([dfba28c](https://github.com/Dynatrace/fm-provider-test-harness/commit/dfba28c71a904be45c5f30d0720bcf25e2cbf637))
+
 ## [1.4.0](https://github.com/Dynatrace/fm-provider-test-harness/compare/v1.3.1...v1.4.0) (2026-10-27)
 
 

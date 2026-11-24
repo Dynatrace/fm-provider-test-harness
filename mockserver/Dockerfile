@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- build ---
-FROM golang:1.23-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 # Modules first for layer caching (no external deps, but keeps the pattern).
 COPY go.mod ./

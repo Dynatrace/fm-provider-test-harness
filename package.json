@@ -8,7 +8,7 @@
     "format:check": "prettier --check \"gherkin/**/*.feature\""
   },
   "devDependencies": {
-    "prettier": "^3.0.0",
+    "prettier": "^3.10.1",
     "prettier-plugin-gherkin": "^4.0.0"
   }
 }
